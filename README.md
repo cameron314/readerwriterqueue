@@ -13,7 +13,7 @@ you could use this queue completely from a single thread if you wish (but that w
 - Allocates memory up front, in contiguous blocks
 - Provides a `try_enqueue` method which is guaranteed never to allocate memory (the queue starts with an initial capacity)
 - Also provies an `enqueue` method which can dynamically grow the size of the queue as needed
-- Completely "non-blocking" (no compare-and-swap loop). Enqueue and dequeue are always O(1) (not counting memory allocation)
+- Completely "wait-free" (no compare-and-swap loop). Enqueue and dequeue are always O(1) (not counting memory allocation)
 - On x86, the memory barriers compile down to no-ops, meaning enqueue and dequeue are just a simple series of loads and stores (and branches)
 
 
@@ -54,10 +54,11 @@ implementation from scratch, independent of any existing lock-free queues.
 
 ## More info
 
-See the LICENSE.md file for the license (simplified BSD).
+See the [LICENSE.md][license] file for the license (simplified BSD).
 
 My [blog post][blog] introduces the context that led to this code, and may be of interest if you're curious
 about lock-free programming.
 
 
 [blog]: http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++
+[license]: LICENSE.md
