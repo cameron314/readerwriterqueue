@@ -12,7 +12,7 @@ you could use this queue completely from a single thread if you wish (but that w
 - Fully generic (templated container of any type)
 - Allocates memory up front, in contiguous blocks
 - Provides a `try_enqueue` method which is guaranteed never to allocate memory (the queue starts with an initial capacity)
-- Also provies an `enqueue` method which can dynamically grow the size of the queue as needed
+- Also provides an `enqueue` method which can dynamically grow the size of the queue as needed
 - Completely "wait-free" (no compare-and-swap loop). Enqueue and dequeue are always O(1) (not counting memory allocation)
 - On x86, the memory barriers compile down to no-ops, meaning enqueue and dequeue are just a simple series of loads and stores (and branches)
 
@@ -47,7 +47,7 @@ anything that's not x86-based.
 Finally, I am not an expert. This is my first foray into lock-free programming, and though I'm confident in the code,
 it's possible that there are bugs despite the effort I put into designing and testing this data structure.
 
-Use this code at your own risk; in particular, lock-free progragmming is a patent minefield, and this code may very
+Use this code at your own risk; in particular, lock-free programming is a patent minefield, and this code may very
 well violate a pending patent (I haven't looked). It's worth noting that I came up with this algorithm and
 implementation from scratch, independent of any existing lock-free queues.
 
