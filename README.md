@@ -9,7 +9,7 @@ you could use this queue completely from a single thread if you wish (but that w
 ## Features
 
 - Compatible with C++11 (supports moving objects instead of making copies)
-- Fully generic (templated container of any type)
+- Fully generic (templated container of any type) -- just like `std::queue`, you never need to allocate memory for elements yourself
 - Allocates memory up front, in contiguous blocks
 - Provides a `try_enqueue` method which is guaranteed never to allocate memory (the queue starts with an initial capacity)
 - Also provides an `enqueue` method which can dynamically grow the size of the queue as needed
