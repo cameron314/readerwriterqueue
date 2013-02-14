@@ -24,6 +24,8 @@
 
 #define CACHE_LINE_SIZE 64
 
+namespace moodycamel {
+
 template<typename T>
 class ReaderWriterQueue
 {
@@ -366,3 +368,5 @@ private:
 	bool enqueuing;
 	bool dequeuing;
 };
+
+}    // end namespace moodycamel

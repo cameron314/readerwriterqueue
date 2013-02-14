@@ -30,7 +30,10 @@
 #if defined(AE_VCPP)
 #define AE_FORCEINLINE __forceinline
 #elif defined(AE_GCC)
-#define AE_FORCEINLINE __attribute__((always_inline)) 
+//#define AE_FORCEINLINE __attribute__((always_inline)) 
+#define AE_FORCEINLINE inline
+#else
+#define AE_FORCEINLINE inline
 #endif
 
 
@@ -39,10 +42,15 @@
 #define AE_ALIGN(x) __declspec(align(x))
 #elif defined(AE_GCC)
 #define AE_ALIGN(x) __attribute__((aligned(x)))
+#else
+// Assume GCC compliant syntax...
+#define AE_ALIGN(x) __attribute__((aligned(x)))
 #endif
 
 
 // Portable atomic fences implemented below:
+
+namespace moodycamel {
 
 enum memory_order {
 	memory_order_relaxed,
@@ -55,6 +63,8 @@ enum memory_order {
 	// #LoadLoad, #LoadStore, #StoreStore, and most significantly, #StoreLoad
 	memory_order_sync = memory_order_seq_cst
 };
+
+}    // end namespace moodycamel
 
 #if defined(AE_VCPP)
 // VS2010 doesn't support std::atomic*, implement our own fences
@@ -72,6 +82,9 @@ enum memory_order {
 #define AeFullSync __sync
 #define AeLiteSync __lwsync
 #endif
+
+
+namespace moodycamel {
 
 AE_FORCEINLINE void compiler_fence(memory_order order)
 {
@@ -135,9 +148,12 @@ AE_FORCEINLINE void fence(memory_order order)
 	}
 }
 #endif
+}    // end namespace moodycamel
 #else
 // Use standard library of atomics
 #include <atomic>
+
+namespace moodycamel {
 
 AE_FORCEINLINE void compiler_fence(memory_order order)
 {
@@ -162,4 +178,7 @@ AE_FORCEINLINE void fence(memory_order order)
 		default: assert(false);
 	}
 }
+
+}    // end namespace moodycamel
+
 #endif
