@@ -24,6 +24,8 @@ A modern compiler is required (MSVC2010+, GCC 4.7+, or any C++11 compliant compi
 
 Example:
 
+    using namespace moodycamel;
+    
     ReaderWriterQueue<int> q(100);       // Reserve space for 100 elements up front
     
     q.enqueue(17);                       // Will allocate memory if the queue is full
