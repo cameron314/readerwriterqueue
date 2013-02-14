@@ -1,7 +1,8 @@
 #pragma once
 
-// Provides semi-portable (supports VC++ and GCC) implementation of low-level
-// synchronization primitives for x86/x64
+// Provides portable (VC++2010+, GCC 4.7+, and anything C++11 compliant) implementation of low-level
+// memory barriers, plus a few semi-portable utility macros (for inlining and alignment).
+// Uses the AE_* prefix for macros (historical reasons), and the "moodycamel" namespace for symbols.
 
 #include <cassert>
 
