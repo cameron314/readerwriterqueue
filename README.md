@@ -36,7 +36,7 @@ Example:
     int number;
     succeeded = q.try_dequeue(number);  // Returns false if the queue was empty
     
-    assert(succeeded && number == 18);
+    assert(succeeded && number == 17);
     
     
 ## Disclaimers
