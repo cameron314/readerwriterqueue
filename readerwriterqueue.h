@@ -59,9 +59,11 @@ public:
 	{
 		assert(maxSize > 0);
 
-		frontBlock = new Block(largestBlockSize);
-		frontBlock->next = frontBlock;
-		tailBlock = frontBlock;
+		auto firstBlock = new Block(largestBlockSize);
+		firstBlock->next = firstBlock;
+		
+		frontBlock = firstBlock;
+		tailBlock = firstBlock;
 
 		// Make sure the reader/writer threads will have the initialized memory setup above:
 		fence(memory_order_sync);
@@ -75,11 +77,12 @@ public:
 		fence(memory_order_sync);
 
 		// Destroy any remaining objects in queue and free memory
-		auto block = frontBlock;
+		Block* tailBlock_ = tailBlock;
+		Block* block = frontBlock;
 		do {
-			auto nextBlock = block->next;
-			auto blockFront = block->front;
-			auto blockTail = block->tail;
+			Block* nextBlock = block->next;
+			int blockFront = block->front;
+			int blockTail = block->tail;
 
 			for (int i = blockFront; i != blockTail; i = (i + 1) % block->size) {
 				auto element = reinterpret_cast<T*>(block->data + i * sizeof(T));
@@ -89,7 +92,7 @@ public:
 			delete block;
 			block = nextBlock;
 
-		} while (block != tailBlock);
+		} while (block != tailBlock_);
 	}
 
 
@@ -140,31 +143,32 @@ public:
 		//     Else advance to next block and dequeue the item there
 
 		// Note that we have to use the value of the tail block from before we check if the front
-		// block is full or not, in case the front block is empty and then before we check if the
-		// tail block is at the front block or not the tail block fills up the front block *and
+		// block is full or not, in case the front block is empty and then, before we check if the
+		// tail block is at the front block or not, the producer fills up the front block *and
 		// moves on*, which would make us skip a filled block. Seems unlikely, but was consistently
 		// reproducible in practice.
 		Block* tailBlockAtStart = tailBlock;
 		fence(memory_order_acquire);
 		
-		int blockFront = frontBlock->front;
-		int blockTail = frontBlock->tail;
+		Block* frontBlock_ = frontBlock;
+		int blockFront = frontBlock_->front;
+		int blockTail = frontBlock_->tail;
 		fence(memory_order_acquire);
 		
 		if (blockFront != blockTail) {
 			// Front block not empty, dequeue from here
-			auto element = reinterpret_cast<T*>(frontBlock->data + blockFront * sizeof(T));
+			auto element = reinterpret_cast<T*>(frontBlock_->data + blockFront * sizeof(T));
 			result = std::move(*element);
 			element->~T();
 
-			blockFront = (blockFront + 1) % frontBlock->size;
+			blockFront = (blockFront + 1) % frontBlock_->size;
 
 			fence(memory_order_release);
-			frontBlock->front = blockFront;
+			frontBlock_->front = blockFront;
 		}
-		else if (frontBlock != tailBlockAtStart) {
+		else if (frontBlock_ != tailBlockAtStart) {
 			// Front block is empty but there's another block ahead, advance to it
-			auto nextBlock = frontBlock->next;
+			Block* nextBlock = frontBlock_->next;
 			// Don't need an acquire fence here since next can only ever be set on the tailBlock,
 			// and we're not the tailBlock, and we did an acquire earlier after reading tailBlock which
 			// ensures next is up-to-date on this CPU in case we recently were at tailBlock.
@@ -179,19 +183,19 @@ public:
 
 			// We're done with this block, let the producer use it if it needs
 			fence(memory_order_release);		// Expose possibly pending changes to frontBlock->front from last dequeue
-			frontBlock = nextBlock;
+			frontBlock = frontBlock_ = nextBlock;
 
 			compiler_fence(memory_order_release);	// Not strictly needed
 
-			auto element = reinterpret_cast<T*>(frontBlock->data + nextBlockFront * sizeof(T));
+			auto element = reinterpret_cast<T*>(frontBlock_->data + nextBlockFront * sizeof(T));
 			
 			result = std::move(*element);
 			element->~T();
 
-			nextBlockFront = (nextBlockFront + 1) % frontBlock->size;
+			nextBlockFront = (nextBlockFront + 1) % frontBlock_->size;
 			
 			fence(memory_order_release);
-			frontBlock->front = nextBlockFront;
+			frontBlock_->front = nextBlockFront;
 		}
 		else {
 			// No elements in current block and no other block to advance to
@@ -217,21 +221,22 @@ private:
 		//     Else create a new block and enqueue there
 		//     Advance tail to the block we just enqueued to
 
-		int blockFront = tailBlock->front;
-		int blockTail = tailBlock->tail;
+		Block* tailBlock_ = tailBlock;
+		int blockFront = tailBlock_->front;
+		int blockTail = tailBlock_->tail;
 		fence(memory_order_acquire);
 
-		if (((blockTail + 1) % tailBlock->size) != blockFront) {
+		if (((blockTail + 1) % tailBlock_->size) != blockFront) {
 			// This block has room for at least one more element
-			char* location = tailBlock->data + blockTail * sizeof(T);
+			char* location = tailBlock_->data + blockTail * sizeof(T);
 			new (location) T(std::forward<U>(element));
 
-			blockTail = (blockTail + 1) % tailBlock->size;
+			blockTail = (blockTail + 1) % tailBlock_->size;
 
 			fence(memory_order_release);
-			tailBlock->tail = blockTail;
+			tailBlock_->tail = blockTail;
 		}
-		else if (tailBlock->next != frontBlock) {
+		else if (tailBlock_->next != frontBlock) {
 			// Note that the reason we can't advance to the frontBlock and start adding new entries there
 			// is because if we did, then dequeue would stay in that block, eventually reading the new values,
 			// instead of advancing to the next full block (whose values were enqueued first and so should be
@@ -240,21 +245,22 @@ private:
 			fence(memory_order_acquire);		// Ensure we get latest writes if we got the latest frontBlock
 
 			// tailBlock is full, but there's a free block ahead, use it
-			int nextBlockFront = tailBlock->next->front;
-			int nextBlockTail = tailBlock->next->tail;
+			Block* tailBlockNext = tailBlock_->next;
+			int nextBlockFront = tailBlockNext->front;
+			int nextBlockTail = tailBlockNext->tail;
 			fence(memory_order_acquire);
 
 			// This block must be empty since it's not the head block and we
 			// go through the blocks in a circle
 			assert(nextBlockFront == nextBlockTail);
 
-			char* location = tailBlock->next->data + nextBlockTail * sizeof(T);
+			char* location = tailBlockNext->data + nextBlockTail * sizeof(T);
 			new (location) T(std::forward<U>(element));
 
-			tailBlock->next->tail = (nextBlockTail + 1) % tailBlock->next->size;
+			tailBlockNext->tail = (nextBlockTail + 1) % tailBlockNext->size;
 
 			fence(memory_order_release);
-			tailBlock = tailBlock->next;
+			tailBlock = tailBlockNext;
 		}
 		else if (canAlloc == CanAlloc) {
 			// tailBlock is full and there's no free block ahead; create a new block
@@ -266,8 +272,8 @@ private:
 			assert(newBlock->front == 0);
 			newBlock->tail = 1;
 
-			newBlock->next = tailBlock->next;
-			tailBlock->next = newBlock;
+			newBlock->next = tailBlock_->next;
+			tailBlock_->next = newBlock;
 
 			// Might be possible for the dequeue thread to see the new tailBlock->next
 			// *without* seeing the new tailBlock value, but this is OK since it can't
@@ -322,13 +328,13 @@ private:
 	{
 		// Avoid false-sharing by putting highly contended variables on their own cache lines
 		AE_ALIGN(CACHE_LINE_SIZE)
-		int front;	// (Atomic) Elements are read from here
+		weak_atomic<int> front;	// (Atomic) Elements are read from here
 		
 		AE_ALIGN(CACHE_LINE_SIZE)
-		int tail;		// (Atomic) Elements are enqueued here
+		weak_atomic<int> tail;		// (Atomic) Elements are enqueued here
 		
 		AE_ALIGN(CACHE_LINE_SIZE)	// next isn't very contended, but we don't want it on the same cache line as tail (which is)
-		Block* next;	// (Atomic)
+		weak_atomic<Block*> next;	// (Atomic)
 		
 		char* data;		// Contents (on heap) are aligned to T's alignment
 
@@ -358,10 +364,10 @@ private:
 
 private:
 	AE_ALIGN(CACHE_LINE_SIZE)
-	Block* frontBlock;		// (Atomic) Elements are enqueued to this block
+	weak_atomic<Block*> frontBlock;		// (Atomic) Elements are enqueued to this block
 	
 	AE_ALIGN(CACHE_LINE_SIZE)
-	Block* tailBlock;		// (Atomic) Elements are dequeued from this block
+	weak_atomic<Block*> tailBlock;		// (Atomic) Elements are dequeued from this block
 
 	AE_ALIGN(CACHE_LINE_SIZE)	// Ensure tailBlock gets its own cache line
 	int largestBlockSize;

@@ -1,7 +1,8 @@
 #pragma once
 
 // Provides portable (VC++2010+, GCC 4.7+, and anything C++11 compliant) implementation of low-level
-// memory barriers, plus a few semi-portable utility macros (for inlining and alignment).
+// memory barriers, plus a few semi-portable utility macros (for inlining and alignment). Also has a
+// basic atomic type (limited to hardware-supported atomics with no memory ordering guarantees).
 // Uses the AE_* prefix for macros (historical reasons), and the "moodycamel" namespace for symbols.
 
 #include <cassert>
@@ -183,3 +184,66 @@ AE_FORCEINLINE void fence(memory_order order)
 }    // end namespace moodycamel
 
 #endif
+
+
+
+
+#if !defined(AE_VCPP) || _MSC_VER >= 1700
+#include <atomic>
+#endif
+#include <utility>
+
+// WARNING: *NOT* A REPLACEMENT FOR std::atomic. READ CAREFULLY:
+// Provides basic support for atomic variables -- no memory ordering guarantees are provided.
+// The guarantee of atomicity is only made for types that already have atomic load and store guarantees
+// at the hardware level -- on most platforms this generally means aligned pointers and integers (only).
+namespace moodycamel {
+template<typename T>
+class weak_atomic
+{
+public:
+	weak_atomic() { }
+	template<typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) { }
+	weak_atomic(weak_atomic const& other) : value(other.value) { }
+	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) { }
+
+#if defined(AE_VCPP) && _MSC_VER < 1700
+	AE_FORCEINLINE template<typename U> weak_atomic const& operator=(U&& x) { value = std::forward<U>(x); return *this; }
+	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) { value = other.value; return *this; }
+	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic&& other) { value = std::move(other.value); return *this; }
+
+	AE_FORCEINLINE operator T() const { return value; }
+#else
+	template<typename U>
+	AE_FORCEINLINE weak_atomic const& operator=(U&& x)
+	{
+		value.store(std::forward<U>(x), std::memory_order_relaxed);
+		return *this;
+	}
+	
+	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other)
+	{
+		value.store(other.value, std::memory_order_relaxed);
+		return *this;
+	}
+	
+	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic&& other)
+	{
+		value.store(std::move(other.value), std::memory_order_relaxed);
+		return *this;
+	}
+
+	AE_FORCEINLINE operator T() const { return value.load(std::memory_order_relaxed); }
+#endif	
+
+private:
+#if defined(AE_VCPP) && _MSC_VER < 1700
+	// No std::atomic support, but still need to circumvent compiler optimizations.
+	// `volatile` will make memory access slow, but is guaranteed to be reliable.
+	volatile T value;
+#else
+	std::atomic<T> value;
+#endif
+};
+
+}	// end namespace moodycamel
