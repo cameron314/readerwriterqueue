@@ -53,9 +53,11 @@ public:
 	// Constructs a queue that can hold maxSize elements without further
 	// allocations.
 	explicit ReaderWriterQueue(int maxSize = 15)
-		: largestBlockSize(maxSize + 1),		// We need a spare slot to fit maxSize elements in the block
-		enqueuing(false),
-		dequeuing(false)
+		: largestBlockSize(maxSize + 1)		// We need a spare slot to fit maxSize elements in the block
+#ifndef NDEBUG
+		,enqueuing(false)
+		,dequeuing(false)
+#endif
 	{
 		assert(maxSize > 0);
 
@@ -133,7 +135,9 @@ public:
 	// moves front to result using operator=, then returns true.
 	bool try_dequeue(T& result)
 	{
+#ifndef NDEBUG
 		ReentrantGuard guard(this->dequeuing);
+#endif
 
 		// High-level pseudocode:
 		// Remember where the tail block is
@@ -212,7 +216,9 @@ private:
 	template<AllocationMode canAlloc, typename U>
 	bool inner_enqueue(U&& element)
 	{
+#ifndef NDEBUG
 		ReentrantGuard guard(this->enqueuing);
+#endif
 
 		// High-level pseudocode (assuming we're allowed to alloc a new block):
 		// If room in tail block, add to tail
@@ -305,6 +311,7 @@ private:
 
 
 private:
+#ifndef NDEBUG
 	struct ReentrantGuard
 	{
 		ReentrantGuard(bool& inSection)
@@ -323,6 +330,7 @@ private:
 	private:
 		bool& inSection;
 	};
+#endif
 
 	struct Block
 	{
@@ -371,8 +379,11 @@ private:
 
 	AE_ALIGN(CACHE_LINE_SIZE)	// Ensure tailBlock gets its own cache line
 	int largestBlockSize;
+
+#ifndef NDEBUG
 	bool enqueuing;
 	bool dequeuing;
+#endif
 };
 
 }    // end namespace moodycamel
