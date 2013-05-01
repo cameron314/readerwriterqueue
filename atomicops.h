@@ -208,7 +208,7 @@ public:
 	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) { }
 
 #if defined(AE_VCPP) && _MSC_VER < 1700
-	AE_FORCEINLINE template<typename U> weak_atomic const& operator=(U&& x) { value = std::forward<U>(x); return *this; }
+	template<typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) { value = std::forward<U>(x); return *this; }
 	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) { value = other.value; return *this; }
 	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic&& other) { value = std::move(other.value); return *this; }
 
