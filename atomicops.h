@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // Provides portable (VC++2010+, GCC 4.7+, and anything C++11 compliant) implementation of low-level
 // memory barriers, plus a few semi-portable utility macros (for inlining and alignment). Also has a
@@ -9,7 +9,9 @@
 
 
 // Platform detection
-#if defined(_MSC_VER)
+#if defined(__INTEL_COMPILER)
+#define AE_ICC
+#elif defined(_MSC_VER)
 #define AE_VCPP
 #elif defined(__GNUC__)
 #define AE_GCC
@@ -29,7 +31,7 @@
 
 
 // AE_FORCEINLINE
-#if defined(AE_VCPP)
+#if defined(AE_VCPP) || defined(AE_ICC)
 #define AE_FORCEINLINE __forceinline
 #elif defined(AE_GCC)
 //#define AE_FORCEINLINE __attribute__((always_inline)) 
@@ -40,7 +42,7 @@
 
 
 // AE_ALIGN
-#if defined(AE_VCPP)
+#if defined(AE_VCPP) || defined(AE_ICC)
 #define AE_ALIGN(x) __declspec(align(x))
 #elif defined(AE_GCC)
 #define AE_ALIGN(x) __attribute__((aligned(x)))
@@ -68,8 +70,8 @@ enum memory_order {
 
 }    // end namespace moodycamel
 
-#if defined(AE_VCPP)
-// VS2010 doesn't support std::atomic*, implement our own fences
+#if defined(AE_VCPP) || defined(AE_ICC)
+// VS2010 and ICC13 don't support std::atomic_*_fence, implement our own fences
 
 #include <intrin.h>
 
@@ -189,6 +191,10 @@ AE_FORCEINLINE void fence(memory_order order)
 
 
 #if !defined(AE_VCPP) || _MSC_VER >= 1700
+#define AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
+#endif
+
+#ifdef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
 #include <atomic>
 #endif
 #include <utility>
@@ -203,47 +209,50 @@ class weak_atomic
 {
 public:
 	weak_atomic() { }
-	template<typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) { }
-	weak_atomic(weak_atomic const& other) : value(other.value) { }
-	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) { }
+	template<typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) { init(); }
+	weak_atomic(weak_atomic const& other) : value(other.value) { init(); }
+	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) { init(); }
+	AE_FORCEINLINE void init() { cachedValue = load(); }
 
-#if defined(AE_VCPP) && _MSC_VER < 1700
-	template<typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) { value = std::forward<U>(x); return *this; }
-	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) { value = other.value; return *this; }
-	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic&& other) { value = std::move(other.value); return *this; }
+	AE_FORCEINLINE operator T() const { return load(); }
 
-	AE_FORCEINLINE operator T() const { return value; }
+	// Use loadFromWriterThread() to gain a (very small) speed increase only when you can
+	// guarantee that this atomic var is being read from the only thread that writes to it.
+	AE_FORCEINLINE T loadFromWriterThread() const { return cachedValue; }
+
+	
+#ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
+	template<typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) { value = cachedValue = std::forward<U>(x); return *this; }
+	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) { value = cachedValue = other.value; return *this; }
+	
+	AE_FORCEINLINE T load() const { return value; }
 #else
 	template<typename U>
 	AE_FORCEINLINE weak_atomic const& operator=(U&& x)
 	{
-		value.store(std::forward<U>(x), std::memory_order_relaxed);
+		value.store(cachedValue = std::forward<U>(x), std::memory_order_relaxed);
 		return *this;
 	}
 	
 	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other)
 	{
-		value.store(other.value, std::memory_order_relaxed);
-		return *this;
-	}
-	
-	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic&& other)
-	{
-		value.store(std::move(other.value), std::memory_order_relaxed);
+		value.store(cachedValue = other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
 		return *this;
 	}
 
-	AE_FORCEINLINE operator T() const { return value.load(std::memory_order_relaxed); }
-#endif	
+	AE_FORCEINLINE T load() const { return value.load(std::memory_order_relaxed); }
+#endif
+	
 
 private:
-#if defined(AE_VCPP) && _MSC_VER < 1700
+#ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
 	// No std::atomic support, but still need to circumvent compiler optimizations.
 	// `volatile` will make memory access slow, but is guaranteed to be reliable.
 	volatile T value;
 #else
 	std::atomic<T> value;
 #endif
+	T cachedValue;
 };
 
 }	// end namespace moodycamel

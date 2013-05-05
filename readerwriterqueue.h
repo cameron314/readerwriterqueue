@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "atomicops.h"
 #include <type_traits>
@@ -6,7 +6,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <cstdint>
-#include <cstdlib>		// For malloc/free
+#include <cstdlib>		// For malloc/free & size_t
 
 
 // A lock-free queue for a single-consumer, single-producer architecture.
@@ -51,9 +51,10 @@ class ReaderWriterQueue
 
 public:
 	// Constructs a queue that can hold maxSize elements without further
-	// allocations.
-	explicit ReaderWriterQueue(int maxSize = 15)
-		: largestBlockSize(maxSize + 1)		// We need a spare slot to fit maxSize elements in the block
+	// allocations. Allocates maxSize + 1, rounded up to the nearest power
+	// of 2, elements.
+	explicit ReaderWriterQueue(size_t maxSize = 15)
+		: largestBlockSize(ceilToPow2(maxSize + 1))		// We need a spare slot to fit maxSize elements in the block
 #ifndef NDEBUG
 		,enqueuing(false)
 		,dequeuing(false)
@@ -83,10 +84,10 @@ public:
 		Block* block = frontBlock;
 		do {
 			Block* nextBlock = block->next;
-			int blockFront = block->front;
-			int blockTail = block->tail;
+			size_t blockFront = block->front;
+			size_t blockTail = block->tail;
 
-			for (int i = blockFront; i != blockTail; i = (i + 1) % block->size) {
+			for (size_t i = blockFront; i != blockTail; i = (i + 1) & block->sizeMask()) {
 				auto element = reinterpret_cast<T*>(block->data + i * sizeof(T));
 				element->~T();
 			}
@@ -101,7 +102,7 @@ public:
 	// Enqueues a copy of element if there is room in the queue.
 	// Returns true if the element was enqueued, false otherwise.
 	// Does not allocate memory.
-	inline bool try_enqueue(T const& element)
+	AE_FORCEINLINE bool try_enqueue(T const& element)
 	{
 		return inner_enqueue<CannotAlloc>(element);
 	}
@@ -109,7 +110,7 @@ public:
 	// Enqueues a moved copy of element if there is room in the queue.
 	// Returns true if the element was enqueued, false otherwise.
 	// Does not allocate memory.
-	inline bool try_enqueue(T&& element)
+	AE_FORCEINLINE bool try_enqueue(T&& element)
 	{
 		return inner_enqueue<CannotAlloc>(element);
 	}
@@ -117,14 +118,14 @@ public:
 
 	// Enqueues a copy of element on the queue.
 	// Allocates an additional block of memory if needed.
-	inline void enqueue(T const& element)
+	AE_FORCEINLINE void enqueue(T const& element)
 	{
 		inner_enqueue<CanAlloc>(element);
 	}
 
 	// Enqueues a moved copy of element on the queue.
 	// Allocates an additional block of memory if needed.
-	inline void enqueue(T&& element)
+	AE_FORCEINLINE void enqueue(T&& element)
 	{
 		inner_enqueue<CanAlloc>(element);
 	}
@@ -153,10 +154,10 @@ public:
 		// reproducible in practice.
 		Block* tailBlockAtStart = tailBlock;
 		fence(memory_order_acquire);
-		
-		Block* frontBlock_ = frontBlock;
-		int blockFront = frontBlock_->front;
-		int blockTail = frontBlock_->tail;
+
+		Block* frontBlock_ = frontBlock.loadFromWriterThread();
+		size_t blockTail = frontBlock_->tail.load();
+		size_t blockFront = frontBlock_->front.loadFromWriterThread();
 		fence(memory_order_acquire);
 		
 		if (blockFront != blockTail) {
@@ -165,7 +166,7 @@ public:
 			result = std::move(*element);
 			element->~T();
 
-			blockFront = (blockFront + 1) % frontBlock_->size;
+			blockFront = (blockFront + 1) & frontBlock_->sizeMask();
 
 			fence(memory_order_release);
 			frontBlock_->front = blockFront;
@@ -177,8 +178,8 @@ public:
 			// and we're not the tailBlock, and we did an acquire earlier after reading tailBlock which
 			// ensures next is up-to-date on this CPU in case we recently were at tailBlock.
 
-			int nextBlockFront = nextBlock->front;
-			int nextBlockTail = nextBlock->tail;
+			size_t nextBlockFront = nextBlock->front.loadFromWriterThread();
+			size_t nextBlockTail = nextBlock->tail;
 			fence(memory_order_acquire);
 
 			// Since the tailBlock is only ever advanced after being written to,
@@ -196,7 +197,7 @@ public:
 			result = std::move(*element);
 			element->~T();
 
-			nextBlockFront = (nextBlockFront + 1) % frontBlock_->size;
+			nextBlockFront = (nextBlockFront + 1) & frontBlock_->sizeMask();
 			
 			fence(memory_order_release);
 			frontBlock_->front = nextBlockFront;
@@ -227,22 +228,21 @@ private:
 		//     Else create a new block and enqueue there
 		//     Advance tail to the block we just enqueued to
 
-		Block* tailBlock_ = tailBlock;
-		int blockFront = tailBlock_->front;
-		int blockTail = tailBlock_->tail;
+		Block* tailBlock_ = tailBlock.loadFromWriterThread();
+		size_t blockFront = tailBlock_->front.load();
+		size_t blockTail = tailBlock_->tail.loadFromWriterThread();
 		fence(memory_order_acquire);
 
-		if (((blockTail + 1) % tailBlock_->size) != blockFront) {
+		size_t nextBlockTail = (blockTail + 1) & tailBlock_->sizeMask();
+		if (nextBlockTail != blockFront) {
 			// This block has room for at least one more element
 			char* location = tailBlock_->data + blockTail * sizeof(T);
 			new (location) T(std::forward<U>(element));
 
-			blockTail = (blockTail + 1) % tailBlock_->size;
-
 			fence(memory_order_release);
-			tailBlock_->tail = blockTail;
+			tailBlock_->tail = nextBlockTail;
 		}
-		else if (tailBlock_->next != frontBlock) {
+		else if (tailBlock_->next.loadFromWriterThread() != frontBlock) {
 			// Note that the reason we can't advance to the frontBlock and start adding new entries there
 			// is because if we did, then dequeue would stay in that block, eventually reading the new values,
 			// instead of advancing to the next full block (whose values were enqueued first and so should be
@@ -251,9 +251,9 @@ private:
 			fence(memory_order_acquire);		// Ensure we get latest writes if we got the latest frontBlock
 
 			// tailBlock is full, but there's a free block ahead, use it
-			Block* tailBlockNext = tailBlock_->next;
-			int nextBlockFront = tailBlockNext->front;
-			int nextBlockTail = tailBlockNext->tail;
+			Block* tailBlockNext = tailBlock_->next.loadFromWriterThread();
+			size_t nextBlockFront = tailBlockNext->front.load();
+			size_t nextBlockTail = tailBlockNext->tail.loadFromWriterThread();
 			fence(memory_order_acquire);
 
 			// This block must be empty since it's not the head block and we
@@ -263,7 +263,7 @@ private:
 			char* location = tailBlockNext->data + nextBlockTail * sizeof(T);
 			new (location) T(std::forward<U>(element));
 
-			tailBlockNext->tail = (nextBlockTail + 1) % tailBlockNext->size;
+			tailBlockNext->tail = (nextBlockTail + 1) & tailBlockNext->sizeMask();
 
 			fence(memory_order_release);
 			tailBlock = tailBlockNext;
@@ -278,7 +278,7 @@ private:
 			assert(newBlock->front == 0);
 			newBlock->tail = 1;
 
-			newBlock->next = tailBlock_->next;
+			newBlock->next = tailBlock_->next.loadFromWriterThread();
 			tailBlock_->next = newBlock;
 
 			// Might be possible for the dequeue thread to see the new tailBlock->next
@@ -309,7 +309,22 @@ private:
 	// Disable assignment
 	ReaderWriterQueue& operator=(ReaderWriterQueue const&) {  }
 
-
+	
+	AE_FORCEINLINE static size_t ceilToPow2(size_t x)
+	{
+		// From http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+		--x;
+		x |= x >> 1;
+		x |= x >> 2;
+		x |= x >> 4;
+		x |= x >> 8;
+		x |= x >> 16;
+		if (sizeof(size_t) > 4U) {
+			x |= x >> 32;
+		}
+		++x;
+		return x;
+	}
 private:
 #ifndef NDEBUG
 	struct ReentrantGuard
@@ -336,19 +351,22 @@ private:
 	{
 		// Avoid false-sharing by putting highly contended variables on their own cache lines
 		AE_ALIGN(CACHE_LINE_SIZE)
-		weak_atomic<int> front;	// (Atomic) Elements are read from here
+		weak_atomic<size_t> front;	// (Atomic) Elements are read from here
 		
 		AE_ALIGN(CACHE_LINE_SIZE)
-		weak_atomic<int> tail;		// (Atomic) Elements are enqueued here
+		weak_atomic<size_t> tail;	// (Atomic) Elements are enqueued here
 		
 		AE_ALIGN(CACHE_LINE_SIZE)	// next isn't very contended, but we don't want it on the same cache line as tail (which is)
 		weak_atomic<Block*> next;	// (Atomic)
 		
 		char* data;		// Contents (on heap) are aligned to T's alignment
 
-		const int size;
+		const size_t size;
 
-		Block(const int size)
+		AE_FORCEINLINE size_t sizeMask() const { return size - 1; }
+
+		// size must be a power of two (and greater than 0)
+		Block(const size_t size)
 			: front(0), tail(0), next(nullptr), size(size)
 		{
 			// Allocate enough memory for an array of Ts, aligned
@@ -378,7 +396,7 @@ private:
 	weak_atomic<Block*> tailBlock;		// (Atomic) Elements are dequeued from this block
 
 	AE_ALIGN(CACHE_LINE_SIZE)	// Ensure tailBlock gets its own cache line
-	int largestBlockSize;
+	size_t largestBlockSize;
 
 #ifndef NDEBUG
 	bool enqueuing;
