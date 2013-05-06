@@ -1,4 +1,8 @@
-﻿#pragma once
+﻿// ©2013 Cameron Desrochers.
+// Distributed under the simplified BSD license (see the license file that
+// should have come with this header).
+
+#pragma once
 
 #include "atomicops.h"
 #include <type_traits>

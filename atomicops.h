@@ -1,8 +1,12 @@
-﻿#pragma once
+﻿// ©2013 Cameron Desrochers.
+// Distributed under the simplified BSD license (see the license file that
+// should have come with this header).
 
-// Provides portable (VC++2010+, GCC 4.7+, and anything C++11 compliant) implementation of low-level
-// memory barriers, plus a few semi-portable utility macros (for inlining and alignment). Also has a
-// basic atomic type (limited to hardware-supported atomics with no memory ordering guarantees).
+#pragma once
+
+// Provides portable (VC++2010+, Intel ICC 13, GCC 4.7+, and anything C++11 compliant) implementation
+// of low-level memory barriers, plus a few semi-portable utility macros (for inlining and alignment).
+// Also has a basic atomic type (limited to hardware-supported atomics with no memory ordering guarantees).
 // Uses the AE_* prefix for macros (historical reasons), and the "moodycamel" namespace for symbols.
 
 #include <cassert>
