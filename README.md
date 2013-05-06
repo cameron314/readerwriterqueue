@@ -8,6 +8,7 @@ you could use this queue completely from a single thread if you wish (but that w
 
 ## Features
 
+- [Blazing fast][benchmarks]
 - Compatible with C++11 (supports moving objects instead of making copies)
 - Fully generic (templated container of any type) -- just like `std::queue`, you never need to allocate memory for elements yourself
   (which saves you the hassle of writing a lock-free memory manager to hold the elements you're queueing)
@@ -21,13 +22,13 @@ you could use this queue completely from a single thread if you wish (but that w
 ## Use
 
 Simply drop the readerwriterqueue.h and atomicops.h files into your source code and include them :-)
-A modern compiler is required (MSVC2010+, GCC 4.7+, or any C++11 compliant compiler should work).
+A modern compiler is required (MSVC2010+, GCC 4.7+, ICC 13+, or any C++11 compliant compiler should work).
 
 Example:
 
     using namespace moodycamel;
     
-    ReaderWriterQueue<int> q(100);       // Reserve space for 100 elements up front
+    ReaderWriterQueue<int> q(100);       // Reserve space for at least 100 elements up front
     
     q.enqueue(17);                       // Will allocate memory if the queue is full
     bool succeeded = q.try_enqueue(18);  // Will only succeed if the queue has an empty slot (never allocates)
@@ -42,9 +43,9 @@ Example:
 ## Disclaimers
 
 The queue should only be used on platforms where aligned integer and pointer access is atomic; fortunately, that
-includes all modern processors (e.g. x86/x86-64, ARM, and PowerPC). *Not* for use with a DEC Alpha processor :-)
+includes all modern processors (e.g. x86/x86-64, ARM, and PowerPC). *Not* for use with a DEC Alpha processor (which has very weak memory ordering) :-)
 
-Note that it's only been tested on x86; if someone has access to other processors I'd love to run some tests on
+Note that it's only been tested on x86(-64); if someone has access to other processors I'd love to run some tests on
 anything that's not x86-based.
 
 Finally, I am not an expert. This is my first foray into lock-free programming, and though I'm confident in the code,
@@ -65,3 +66,4 @@ about lock-free programming.
 
 [blog]: http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++
 [license]: LICENSE.md
+[benchmarks]: http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++#benchmarks
