@@ -213,34 +213,29 @@ class weak_atomic
 {
 public:
 	weak_atomic() { }
-	template<typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) { init(); }
-	weak_atomic(weak_atomic const& other) : value(other.value) { init(); }
-	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) { init(); }
-	AE_FORCEINLINE void init() { cachedValue = load(); }
+	template<typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) {  }
+	weak_atomic(weak_atomic const& other) : value(other.value) {  }
+	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) {  }
 
 	AE_FORCEINLINE operator T() const { return load(); }
 
-	// Use loadFromWriterThread() to gain a (very small) speed increase only when you can
-	// guarantee that this atomic var is being read from the only thread that writes to it.
-	AE_FORCEINLINE T loadFromWriterThread() const { return cachedValue; }
-
 	
 #ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
-	template<typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) { value = cachedValue = std::forward<U>(x); return *this; }
-	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) { value = cachedValue = other.value; return *this; }
+	template<typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) { value = std::forward<U>(x); return *this; }
+	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) { value = other.value; return *this; }
 	
 	AE_FORCEINLINE T load() const { return value; }
 #else
 	template<typename U>
 	AE_FORCEINLINE weak_atomic const& operator=(U&& x)
 	{
-		value.store(cachedValue = std::forward<U>(x), std::memory_order_relaxed);
+		value.store(std::forward<U>(x), std::memory_order_relaxed);
 		return *this;
 	}
 	
 	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other)
 	{
-		value.store(cachedValue = other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
+		value.store(other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
 		return *this;
 	}
 
@@ -256,7 +251,6 @@ private:
 #else
 	std::atomic<T> value;
 #endif
-	T cachedValue;
 };
 
 }	// end namespace moodycamel

@@ -159,9 +159,9 @@ public:
 		Block* tailBlockAtStart = tailBlock;
 		fence(memory_order_acquire);
 
-		Block* frontBlock_ = frontBlock.loadFromWriterThread();
+		Block* frontBlock_ = frontBlock.load();
 		size_t blockTail = frontBlock_->tail.load();
-		size_t blockFront = frontBlock_->front.loadFromWriterThread();
+		size_t blockFront = frontBlock_->front.load();
 		fence(memory_order_acquire);
 		
 		if (blockFront != blockTail) {
@@ -182,7 +182,7 @@ public:
 			// and we're not the tailBlock, and we did an acquire earlier after reading tailBlock which
 			// ensures next is up-to-date on this CPU in case we recently were at tailBlock.
 
-			size_t nextBlockFront = nextBlock->front.loadFromWriterThread();
+			size_t nextBlockFront = nextBlock->front.load();
 			size_t nextBlockTail = nextBlock->tail;
 			fence(memory_order_acquire);
 
@@ -232,9 +232,9 @@ private:
 		//     Else create a new block and enqueue there
 		//     Advance tail to the block we just enqueued to
 
-		Block* tailBlock_ = tailBlock.loadFromWriterThread();
+		Block* tailBlock_ = tailBlock.load();
 		size_t blockFront = tailBlock_->front.load();
-		size_t blockTail = tailBlock_->tail.loadFromWriterThread();
+		size_t blockTail = tailBlock_->tail.load();
 		fence(memory_order_acquire);
 
 		size_t nextBlockTail = (blockTail + 1) & tailBlock_->sizeMask();
@@ -246,7 +246,7 @@ private:
 			fence(memory_order_release);
 			tailBlock_->tail = nextBlockTail;
 		}
-		else if (tailBlock_->next.loadFromWriterThread() != frontBlock) {
+		else if (tailBlock_->next.load() != frontBlock) {
 			// Note that the reason we can't advance to the frontBlock and start adding new entries there
 			// is because if we did, then dequeue would stay in that block, eventually reading the new values,
 			// instead of advancing to the next full block (whose values were enqueued first and so should be
@@ -255,9 +255,9 @@ private:
 			fence(memory_order_acquire);		// Ensure we get latest writes if we got the latest frontBlock
 
 			// tailBlock is full, but there's a free block ahead, use it
-			Block* tailBlockNext = tailBlock_->next.loadFromWriterThread();
+			Block* tailBlockNext = tailBlock_->next.load();
 			size_t nextBlockFront = tailBlockNext->front.load();
-			size_t nextBlockTail = tailBlockNext->tail.loadFromWriterThread();
+			size_t nextBlockTail = tailBlockNext->tail.load();
 			fence(memory_order_acquire);
 
 			// This block must be empty since it's not the head block and we
@@ -282,7 +282,7 @@ private:
 			assert(newBlock->front == 0);
 			newBlock->tail = 1;
 
-			newBlock->next = tailBlock_->next.loadFromWriterThread();
+			newBlock->next = tailBlock_->next.load();
 			tailBlock_->next = newBlock;
 
 			// Might be possible for the dequeue thread to see the new tailBlock->next
@@ -313,7 +313,8 @@ private:
 	// Disable assignment
 	ReaderWriterQueue& operator=(ReaderWriterQueue const&) {  }
 
-	
+
+
 	AE_FORCEINLINE static size_t ceilToPow2(size_t x)
 	{
 		// From http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
@@ -369,8 +370,9 @@ private:
 
 		AE_FORCEINLINE size_t sizeMask() const { return size - 1; }
 
+
 		// size must be a power of two (and greater than 0)
-		Block(const size_t size)
+		Block(size_t const& size)
 			: front(0), tail(0), next(nullptr), size(size)
 		{
 			// Allocate enough memory for an array of Ts, aligned
