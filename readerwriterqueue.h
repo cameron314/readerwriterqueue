@@ -116,7 +116,7 @@ public:
 	// Does not allocate memory.
 	AE_FORCEINLINE bool try_enqueue(T&& element)
 	{
-		return inner_enqueue<CannotAlloc>(element);
+		return inner_enqueue<CannotAlloc>(std::forward<T>(element));
 	}
 
 
@@ -131,7 +131,7 @@ public:
 	// Allocates an additional block of memory if needed.
 	AE_FORCEINLINE void enqueue(T&& element)
 	{
-		inner_enqueue<CanAlloc>(element);
+		inner_enqueue<CanAlloc>(std::forward<T>(element));
 	}
 
 
