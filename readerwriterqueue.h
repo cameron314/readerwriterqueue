@@ -28,6 +28,13 @@
 
 #define CACHE_LINE_SIZE 64
 
+#ifdef AE_VCPP
+#pragma warning(push)
+#pragma warning(disable: 4324)	// structure was padded due to __declspec(align())
+#pragma warning(disable: 4820)	// padding was added
+#pragma warning(disable: 4127)	// conditional expression is constant
+#endif
+
 namespace moodycamel {
 
 template<typename T>
@@ -94,6 +101,7 @@ public:
 			for (size_t i = blockFront; i != blockTail; i = (i + 1) & block->sizeMask()) {
 				auto element = reinterpret_cast<T*>(block->data + i * sizeof(T));
 				element->~T();
+				(void)element;
 			}
 
 			delete block;
@@ -322,10 +330,8 @@ private:
 		x |= x >> 1;
 		x |= x >> 2;
 		x |= x >> 4;
-		x |= x >> 8;
-		x |= x >> 16;
-		if (sizeof(size_t) > 4U) {
-			x |= x >> 32;
+		for (size_t i = 1; i < sizeof(size_t); i <<= 1) {
+			x |= x >> (i << 3);
 		}
 		++x;
 		return x;
@@ -346,6 +352,9 @@ private:
 		}
 
 		~ReentrantGuard() { inSection = false; }
+
+	private:
+		ReentrantGuard& operator=(ReentrantGuard const&);
 
 	private:
 		bool& inSection;
@@ -391,6 +400,10 @@ private:
 		}
 
 	private:
+		// C4512 - Assignment operator could not be generated
+		Block& operator=(Block const&);
+
+	private:
 		char* rawData;
 	};
 
@@ -411,3 +424,7 @@ private:
 };
 
 }    // end namespace moodycamel
+
+#ifdef AE_VCPP
+#pragma warning(pop)
+#endif
