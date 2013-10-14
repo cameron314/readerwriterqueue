@@ -265,7 +265,7 @@ private:
 			// tailBlock is full, but there's a free block ahead, use it
 			Block* tailBlockNext = tailBlock_->next.load();
 			size_t nextBlockFront = tailBlockNext->front.load();
-			size_t nextBlockTail = tailBlockNext->tail.load();
+			nextBlockTail = tailBlockNext->tail.load();
 			fence(memory_order_acquire);
 
 			// This block must be empty since it's not the head block and we
@@ -340,8 +340,8 @@ private:
 #ifndef NDEBUG
 	struct ReentrantGuard
 	{
-		ReentrantGuard(bool& inSection)
-			: inSection(inSection)
+		ReentrantGuard(bool& _inSection)
+			: inSection(_inSection)
 		{
 			assert(!inSection);
 			if (inSection) {
@@ -381,8 +381,8 @@ private:
 
 
 		// size must be a power of two (and greater than 0)
-		Block(size_t const& size)
-			: front(0), tail(0), next(nullptr), size(size)
+		Block(size_t const& _size)
+			: front(0), tail(0), next(nullptr), size(_size)
 		{
 			// Allocate enough memory for an array of Ts, aligned
 			size_t alignment = std::alignment_of<T>::value;
