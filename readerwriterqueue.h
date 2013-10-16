@@ -168,6 +168,10 @@ public:
 		fence(memory_order_acquire);
 
 		Block* frontBlock_ = frontBlock.load();
+		if (frontBlock_ == nullptr) {
+			return false;
+		}
+
 		size_t blockTail = frontBlock_->tail.load();
 		size_t blockFront = frontBlock_->front.load();
 		fence(memory_order_acquire);
