@@ -1,0 +1,10 @@
+*.ipch
+*.suo
+*.user
+*.sdf
+*.opensdf
+tests/stabtest/msvc10/Debug/
+tests/stabtest/msvc10/Release/
+tests/stabtest/msvc10/log.txt
+tests/stabtest/log.txt
+tests/stabtest/stabtest.exe
