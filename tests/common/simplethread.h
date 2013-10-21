@@ -1,5 +1,10 @@
 #pragma once
 
+// Like C++11's std::thread, but with a reduced API, and works on Windows with MSVC2010+.
+// Wraps std::thread on other OSes. Perhaps the most significant departure between
+// std::thread and this mini-library is that join() is called implicitly in the destructor,
+// if the thread is joinable. The thread callback functions should not throw exceptions.
+
 #include <utility>
 #include <type_traits>
 
@@ -44,6 +49,7 @@ namespace details
 		template<typename TCallback> void callCallback(TCallback&& callback) const { std::forward<TCallback>(callback)(); }
 	};
 }
+
 
 class SimpleThread
 {
