@@ -266,6 +266,10 @@ public:
 				}
 			}
 		});
+		
+		writer.join();
+		reader.join();
+		
 		return result.load() == 1 ? true : false;
 	}
 };
