@@ -223,6 +223,41 @@ public:
 	}
 
 
+	// Returns a pointer to the first element in the queue (the one that
+	// would be removed next by a call to `try_dequeue`). If the queue appears
+	// empty at the time the method is called, nullptr is returned instead.
+	// Must be called only from the consumer thread.
+	T* peek()
+	{
+#ifndef NDEBUG
+		ReentrantGuard guard(this->dequeuing);
+#endif
+		// See try_dequeue() for reasoning
+
+		Block* tailBlockAtStart = tailBlock;
+		fence(memory_order_acquire);
+
+		Block* frontBlock_ = frontBlock.load();
+		size_t blockTail = frontBlock_->tail.load();
+		size_t blockFront = frontBlock_->front.load();
+		fence(memory_order_acquire);
+		
+		if (blockFront != blockTail) {
+			return reinterpret_cast<T*>(frontBlock_->data + blockFront * sizeof(T));
+		}
+		else if (frontBlock_ != tailBlockAtStart) {
+			Block* nextBlock = frontBlock_->next;
+			
+			size_t nextBlockFront = nextBlock->front.load();
+			fence(memory_order_acquire);
+
+			assert(nextBlockFront != nextBlock->tail);
+			return reinterpret_cast<T*>(nextBlock->data + nextBlockFront * sizeof(T));
+		}
+		return nullptr;
+	}
+
+
 private:
 	enum AllocationMode { CanAlloc, CannotAlloc };
 

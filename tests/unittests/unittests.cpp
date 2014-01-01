@@ -53,6 +53,7 @@ public:
 		REGISTER_TEST(enqueue_many);
 		REGISTER_TEST(nonempty_destroy);
 		REGISTER_TEST(try_enqueue);
+		REGISTER_TEST(peek);
 		REGISTER_TEST(threaded);
 	}
 	
@@ -258,6 +259,49 @@ public:
 		});
 		SimpleThread writer([&]() {
 			for (int i = 0; i != 1000000; ++i) {
+				if (((i >> 7) & 1) == 0) {
+					q.enqueue(i);
+				}
+				else {
+					q.try_enqueue(i);
+				}
+			}
+		});
+		
+		writer.join();
+		reader.join();
+		
+		return result.load() == 1 ? true : false;
+	}
+
+	bool peek()
+	{
+		weak_atomic<int> result;
+		result = 1;
+		
+		ReaderWriterQueue<int> q(100);
+		SimpleThread reader([&]() {
+			int item;
+			int prevItem = -1;
+			int* peeked;
+			for (int i = 0; i != 100000; ++i) {
+				peeked = q.peek();
+				if (peeked != nullptr)
+				{
+					if (q.try_dequeue(item)) {
+						if (item <= prevItem || item != *peeked) {
+							result = 0;
+						}
+						prevItem = item;
+					}
+					else {
+						result = 0;
+					}
+				}
+			}
+		});
+		SimpleThread writer([&]() {
+			for (int i = 0; i != 100000; ++i) {
 				if (((i >> 7) & 1) == 0) {
 					q.enqueue(i);
 				}
