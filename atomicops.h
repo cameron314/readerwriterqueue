@@ -34,6 +34,10 @@
 #endif
 
 
+// AE_UNUSED
+#define AE_UNUSED(x) ((void)x);
+
+
 // AE_FORCEINLINE
 #if defined(AE_VCPP) || defined(AE_ICC)
 #define AE_FORCEINLINE __forceinline

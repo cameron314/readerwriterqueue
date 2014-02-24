@@ -197,6 +197,7 @@ public:
 			// Since the tailBlock is only ever advanced after being written to,
 			// we know there's for sure an element to dequeue on it
 			assert(nextBlockFront != nextBlockTail);
+			AE_UNUSED(nextBlockTail);
 
 			// We're done with this block, let the producer use it if it needs
 			fence(memory_order_release);		// Expose possibly pending changes to frontBlock->front from last dequeue
@@ -306,6 +307,7 @@ private:
 			// This block must be empty since it's not the head block and we
 			// go through the blocks in a circle
 			assert(nextBlockFront == nextBlockTail);
+			AE_UNUSED(nextBlockFront);
 
 			char* location = tailBlockNext->data + nextBlockTail * sizeof(T);
 			new (location) T(std::forward<U>(element));

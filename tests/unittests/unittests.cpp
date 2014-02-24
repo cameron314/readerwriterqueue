@@ -17,7 +17,7 @@ using namespace moodycamel;
 struct Foo
 {
 	Foo() : copied(false) { id = _id()++; }
-	Foo(Foo const& other) : copied(true), id(other.id) { }
+	Foo(Foo const& other) : id(other.id), copied(true) { }
 	~Foo()
 	{
 		if (copied) return;
