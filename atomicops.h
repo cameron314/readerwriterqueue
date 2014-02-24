@@ -35,7 +35,7 @@
 
 
 // AE_UNUSED
-#define AE_UNUSED(x) ((void)x);
+#define AE_UNUSED(x) ((void)x)
 
 
 // AE_FORCEINLINE
