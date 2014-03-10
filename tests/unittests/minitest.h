@@ -1,5 +1,10 @@
-// ©2013 Cameron Desrochers.
+// ©2013-2014 Cameron Desrochers.
+// Distributed under the simplified BSD license (see the LICENSE file that
+// should have come with this header).
+
 // Provides an extremely basic unit testing framework.
+
+#pragma once
 
 #include <cstdio>
 #include <string>
@@ -32,22 +37,27 @@ public:
 		std::printf("    FAILED!\n    ******* Assertion failed (line %d): %s\n\n", line, expr);
 	}
 	
-	bool run()
+	bool validateTestName(std::string const& which)
+	{
+		return testMap.find(which) != testMap.end();
+	}
+	
+	bool run(unsigned int iterations = 1)
 	{
 		bool success = true;
 		for (auto it = testVec.cbegin(); it != testVec.cend(); ++it) {
-			if (!execTest(*it)) {
+			if (!execTest(*it, iterations)) {
 				success = false;
 			}
 		}
 		return success;
 	}
 	
-	bool run(std::vector<std::string> const& which)
+	bool run(std::vector<std::string> const& which, unsigned int iterations = 1)
 	{
 		bool success = true;
 		for (auto it = which.begin(); it != which.end(); ++it) {
-			if (!execTest(*testMap.find(*it))) {
+			if (!execTest(*testMap.find(*it), iterations)) {
 				success = false;
 			}
 		}
@@ -63,11 +73,17 @@ protected:
 		testMap[std::string(name)] = method;
 	}
 	
-	bool execTest(std::pair<std::string, bool (subclass_t::*)()> const& testRef)
+	bool execTest(std::pair<std::string, bool (subclass_t::*)()> const& testRef, unsigned int iterations)
 	{
 		std::printf("%s::%s... \n", demangle_type_name(typeid(subclass_t).name()).c_str(), testRef.first.c_str());
 		
-		bool result = (static_cast<subclass_t*>(this)->*testRef.second)();
+		bool result = true;
+		for (unsigned int i = 0; i != iterations; ++i) {
+			if (!(static_cast<subclass_t*>(this)->*testRef.second)()) {
+				result = false;
+				break;
+			}
+		}
 		
 		if (result) {
 			std::printf("    passed\n\n");

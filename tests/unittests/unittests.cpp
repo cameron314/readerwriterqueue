@@ -335,6 +335,8 @@ int main(int argc, char** argv)
 		progName = progName.substr(slash + 1);
 	}
 	
+	ReaderWriterQueueTests tests;
+	
 	// Parse command line options
 	if (argc == 1) {
 		std::printf("Running all unit tests for moodycamel::ReaderWriterQueue.\n(Run %s --help for other options.)\n\n", progName.c_str());
@@ -356,7 +358,13 @@ int main(int argc, char** argv)
 					continue;
 				}
 				
-				selectedTests.push_back(argv[++i]);
+				if (!tests.validateTestName(argv[++i])) {
+					std::printf("Unrecognized test '%s'.\n", argv[i]);
+					error = true;
+					continue;
+				}
+				
+				selectedTests.push_back(argv[i]);
 			}
 			else {
 				std::printf("Unrecognized option '%s'.\n\n", argv[i]);
@@ -375,7 +383,6 @@ int main(int argc, char** argv)
 	
 	
 	int exitCode = 0;
-	ReaderWriterQueueTests tests;
 	
 	bool result;
 	if (selectedTests.size() > 0) {
