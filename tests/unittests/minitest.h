@@ -37,9 +37,16 @@ public:
 		std::printf("    FAILED!\n    ******* Assertion failed (line %d): %s\n\n", line, expr);
 	}
 	
-	bool validateTestName(std::string const& which)
+	bool validateTestName(std::string const& which) const
 	{
 		return testMap.find(which) != testMap.end();
+	}
+	
+	void getAllTestNames(std::vector<std::string>& names) const
+	{
+		for (auto it = testMap.cbegin(); it != testMap.cend(); ++it) {
+			names.push_back(it->first);
+		}
 	}
 	
 	bool run(unsigned int iterations = 1)

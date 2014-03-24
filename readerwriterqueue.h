@@ -146,7 +146,8 @@ public:
 	// Attempts to dequeue an element; if the queue is empty,
 	// returns false instead. If the queue has at least one element,
 	// moves front to result using operator=, then returns true.
-	bool try_dequeue(T& result)
+	template<typename U>
+	bool try_dequeue(U& result)
 	{
 #ifndef NDEBUG
 		ReentrantGuard guard(this->dequeuing);
@@ -224,9 +225,10 @@ public:
 	}
 
 
-	// Returns a pointer to the first element in the queue (the one that
-	// would be removed next by a call to `try_dequeue`). If the queue appears
-	// empty at the time the method is called, nullptr is returned instead.
+	// Returns a pointer to the front element in the queue (the one that
+	// would be removed next by a call to `try_dequeue` or `pop`). If the
+	// queue appears empty at the time the method is called, nullptr is
+	// returned instead.
 	// Must be called only from the consumer thread.
 	T* peek()
 	{
@@ -256,6 +258,66 @@ public:
 			return reinterpret_cast<T*>(nextBlock->data + nextBlockFront * sizeof(T));
 		}
 		return nullptr;
+	}
+	
+	// Removes the front element from the queue, if any, without returning it.
+	// Returns true on success, or false if the queue appeared empty at the time
+	// `pop` was called.
+	bool pop()
+	{
+#ifndef NDEBUG
+		ReentrantGuard guard(this->dequeuing);
+#endif
+		// See try_dequeue() for reasoning
+		
+		Block* tailBlockAtStart = tailBlock;
+		fence(memory_order_acquire);
+
+		Block* frontBlock_ = frontBlock.load();
+		size_t blockTail = frontBlock_->tail.load();
+		size_t blockFront = frontBlock_->front.load();
+		fence(memory_order_acquire);
+		
+		if (blockFront != blockTail) {
+			// Front block not empty, pop
+			auto element = reinterpret_cast<T*>(frontBlock_->data + blockFront * sizeof(T));
+			element->~T();
+
+			blockFront = (blockFront + 1) & frontBlock_->sizeMask();
+
+			fence(memory_order_release);
+			frontBlock_->front = blockFront;
+		}
+		else if (frontBlock_ != tailBlockAtStart) {
+			// Front block is empty but there's another block ahead, advance to it
+			Block* nextBlock = frontBlock_->next;
+			
+			size_t nextBlockFront = nextBlock->front.load();
+			size_t nextBlockTail = nextBlock->tail;
+			fence(memory_order_acquire);
+
+			assert(nextBlockFront != nextBlockTail);
+			AE_UNUSED(nextBlockTail);
+
+			fence(memory_order_release);
+			frontBlock = frontBlock_ = nextBlock;
+
+			compiler_fence(memory_order_release);
+
+			auto element = reinterpret_cast<T*>(frontBlock_->data + nextBlockFront * sizeof(T));
+			element->~T();
+
+			nextBlockFront = (nextBlockFront + 1) & frontBlock_->sizeMask();
+			
+			fence(memory_order_release);
+			frontBlock_->front = nextBlockFront;
+		}
+		else {
+			// No elements in current block and no other block to advance to
+			return false;
+		}
+
+		return true;
 	}
 
 

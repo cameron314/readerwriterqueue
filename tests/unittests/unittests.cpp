@@ -54,6 +54,7 @@ public:
 		REGISTER_TEST(nonempty_destroy);
 		REGISTER_TEST(try_enqueue);
 		REGISTER_TEST(peek);
+		REGISTER_TEST(pop);
 		REGISTER_TEST(threaded);
 	}
 	
@@ -316,7 +317,64 @@ public:
 		
 		return result.load() == 1 ? true : false;
 	}
+	
+	bool pop()
+	{
+		weak_atomic<int> result;
+		result = 1;
+		
+		ReaderWriterQueue<int> q(100);
+		SimpleThread reader([&]() {
+			int item;
+			int prevItem = -1;
+			int* peeked;
+			for (int i = 0; i != 100000; ++i) {
+				peeked = q.peek();
+				if (peeked != nullptr)
+				{
+					item = *peeked;
+					if (q.pop()) {
+						if (item <= prevItem) {
+							result = 0;
+						}
+						prevItem = item;
+					}
+					else {
+						result = 0;
+					}
+				}
+			}
+		});
+		SimpleThread writer([&]() {
+			for (int i = 0; i != 100000; ++i) {
+				if (((i >> 7) & 1) == 0) {
+					q.enqueue(i);
+				}
+				else {
+					q.try_enqueue(i);
+				}
+			}
+		});
+		
+		writer.join();
+		reader.join();
+		
+		return result.load() == 1 ? true : false;
+	}
 };
+
+
+
+void printTests(ReaderWriterQueueTests const& tests)
+{
+	std::printf("   Supported tests are:\n");
+	
+	std::vector<std::string> names;
+	tests.getAllTestNames(names);
+	for (auto it = names.cbegin(); it != names.cend(); ++it) {
+		std::printf("      %s\n", it->c_str());
+	}
+}
 
 
 // Basic test harness
@@ -343,6 +401,7 @@ int main(int argc, char** argv)
 	}
 	else {
 		bool printHelp = false;
+		bool printedTests = false;
 		bool error = false;
 		for (int i = 1; i < argc; ++i) {
 			if (std::strcmp(argv[i], "--help") == 0) {
@@ -354,12 +413,20 @@ int main(int argc, char** argv)
 			else if (std::strcmp(argv[i], "--run") == 0) {
 				if (i + 1 == argc || argv[i + 1][0] == '-') {
 					std::printf("Expected test name argument for --run option.\n");
+					if (!printedTests) {
+						printTests(tests);
+						printedTests = true;
+					}
 					error = true;
 					continue;
 				}
 				
 				if (!tests.validateTestName(argv[++i])) {
 					std::printf("Unrecognized test '%s'.\n", argv[i]);
+					if (!printedTests) {
+						printTests(tests);
+						printedTests = true;
+					}
 					error = true;
 					continue;
 				}
@@ -367,12 +434,15 @@ int main(int argc, char** argv)
 				selectedTests.push_back(argv[i]);
 			}
 			else {
-				std::printf("Unrecognized option '%s'.\n\n", argv[i]);
+				std::printf("Unrecognized option '%s'.\n", argv[i]);
 				error = true;
 			}
 		}
 		
 		if (error || printHelp) {
+			if (error) {
+				std::printf("\n");
+			}
 			std::printf("%s\n    Description: Runs unit tests for moodycamel::ReaderWriterQueue\n", progName.c_str());
 			std::printf("    --help            Prints this help blurb\n");
 			std::printf("    --run test        Runs only the specified test(s)\n");
