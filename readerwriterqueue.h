@@ -91,7 +91,8 @@ public:
 		fence(memory_order_sync);
 
 		// Destroy any remaining objects in queue and free memory
-		Block* block = frontBlock;
+		Block* frontBlock_ = frontBlock;
+		Block* block = frontBlock_;
 		do {
 			Block* nextBlock = block->next;
 			size_t blockFront = block->front;
@@ -106,7 +107,7 @@ public:
 			delete block;
 			block = nextBlock;
 
-		} while (block != frontBlock);
+		} while (block != frontBlock_);
 	}
 
 
