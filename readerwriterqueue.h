@@ -73,7 +73,8 @@ public:
 	{
 		assert(maxSize > 0);
 
-		auto firstBlock = new Block(largestBlockSize);
+		auto firstBlockRaw = static_cast<char*>(std::malloc(sizeof(Block) + std::alignment_of<Block>() - 1));
+		auto firstBlock = new (align_for<Block>(firstBlockRaw)) Block(largestBlockSize, firstBlockRaw);
 		firstBlock->next = firstBlock;
 		
 		frontBlock = firstBlock;
@@ -104,7 +105,7 @@ public:
 				(void)element;
 			}
 
-			delete block;
+			std::free(block->rawThis);
 			block = nextBlock;
 
 		} while (block != frontBlock_);
@@ -382,7 +383,8 @@ private:
 		else if (canAlloc == CanAlloc) {
 			// tailBlock is full and there's no free block ahead; create a new block
 			largestBlockSize *= 2;
-			Block* newBlock = new Block(largestBlockSize);
+			auto newBlockRaw = static_cast<char*>(std::malloc(sizeof(Block) + std::alignment_of<Block>() - 1));
+			auto newBlock = new (align_for<Block>(newBlockRaw)) Block(largestBlockSize, newBlockRaw);
 
 			new (newBlock->data) T(std::forward<U>(element));
 
@@ -435,6 +437,14 @@ private:
 		++x;
 		return x;
 	}
+
+
+	template<typename U>
+	static AE_FORCEINLINE char* align_for(char* ptr)
+	{
+		const std::size_t alignment = std::alignment_of<U>::value;
+		return ptr + (alignment - (reinterpret_cast<std::uintptr_t>(ptr) % alignment)) % alignment;
+	}
 private:
 #ifndef NDEBUG
 	struct ReentrantGuard
@@ -480,8 +490,8 @@ private:
 
 
 		// size must be a power of two (and greater than 0)
-		Block(size_t const& _size)
-			: front(0), tail(0), next(nullptr), size(_size)
+		Block(size_t const& _size, char* rawThis)
+			: front(0), tail(0), next(nullptr), size(_size), rawThis(rawThis)
 		{
 			// Allocate enough memory for an array of Ts, aligned
 			size_t alignment = std::alignment_of<T>::value;
@@ -504,6 +514,9 @@ private:
 
 	private:
 		char* rawData;
+
+	public:
+		char* rawThis;
 	};
 
 private:
