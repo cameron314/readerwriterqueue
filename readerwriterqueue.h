@@ -73,7 +73,7 @@ public:
 	{
 		assert(maxSize > 0);
 
-		auto firstBlockRaw = static_cast<char*>(std::malloc(sizeof(Block) + std::alignment_of<Block>() - 1));
+		auto firstBlockRaw = static_cast<char*>(std::malloc(sizeof(Block) + std::alignment_of<Block>::value - 1));
 		auto firstBlock = new (align_for<Block>(firstBlockRaw)) Block(largestBlockSize, firstBlockRaw);
 		firstBlock->next = firstBlock;
 		
@@ -383,7 +383,7 @@ private:
 		else if (canAlloc == CanAlloc) {
 			// tailBlock is full and there's no free block ahead; create a new block
 			largestBlockSize *= 2;
-			auto newBlockRaw = static_cast<char*>(std::malloc(sizeof(Block) + std::alignment_of<Block>() - 1));
+			auto newBlockRaw = static_cast<char*>(std::malloc(sizeof(Block) + std::alignment_of<Block>::value - 1));
 			auto newBlock = new (align_for<Block>(newBlockRaw)) Block(largestBlockSize, newBlockRaw);
 
 			new (newBlock->data) T(std::forward<U>(element));
