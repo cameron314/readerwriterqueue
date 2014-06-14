@@ -55,6 +55,7 @@ public:
 		REGISTER_TEST(try_enqueue);
 		REGISTER_TEST(peek);
 		REGISTER_TEST(pop);
+		REGISTER_TEST(size_approx);
 		REGISTER_TEST(threaded);
 	}
 	
@@ -352,6 +353,54 @@ public:
 				}
 				else {
 					q.try_enqueue(i);
+				}
+			}
+		});
+		
+		writer.join();
+		reader.join();
+		
+		return result.load() == 1 ? true : false;
+	}
+	
+	bool size_approx()
+	{
+		weak_atomic<int> result;
+		weak_atomic<int> front;
+		weak_atomic<int> tail;
+		
+		result = 1;
+		front = 0;
+		tail = 0;
+		
+		ReaderWriterQueue<int> q(10);
+		SimpleThread reader([&]() {
+			int item;
+			for (int i = 0; i != 100000; ++i) {
+				if (q.try_dequeue(item)) {
+					fence(memory_order_release);
+					front = front.load() + 1;
+				}
+				int size = (int)q.size_approx();
+				fence(memory_order_acquire);
+				int tail_ = tail.load();
+				int front_ = front.load();
+				if (size > tail_ - front_ || size < 0) {
+					result = 0;
+				}
+			}
+		});
+		SimpleThread writer([&]() {
+			for (int i = 0; i != 100000; ++i) {
+				tail = tail.load() + 1;
+				fence(memory_order_release);
+				q.enqueue(i);
+				int tail_ = tail.load();
+				int front_ = front.load();
+				fence(memory_order_acquire);
+				int size = (int)q.size_approx();
+				if (size > tail_ - front_ || size < 0) {
+					result = 0;
 				}
 			}
 		});

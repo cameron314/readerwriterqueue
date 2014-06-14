@@ -320,6 +320,23 @@ public:
 
 		return true;
 	}
+	
+	// Returns the approximate number of items currently in the queue.
+	// Safe to call from both the producer and consumer threads.
+	inline size_t size_approx() const
+	{
+		size_t result = 0;
+		Block* frontBlock_ = frontBlock.load();
+		Block* block = frontBlock_;
+		do {
+			fence(memory_order_acquire);
+			size_t blockFront = block->front.load();
+			size_t blockTail = block->tail.load();
+			result += (blockTail - blockFront) & block->sizeMask();
+			block = block->next.load();
+		} while (block != frontBlock_);
+		return result;
+	}
 
 
 private:

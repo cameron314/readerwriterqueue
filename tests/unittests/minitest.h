@@ -95,6 +95,9 @@ protected:
 		if (result) {
 			std::printf("    passed\n\n");
 		}
+		else {
+			std::printf("    FAILED!\n\n");
+		}
 		return result;
 	}
 	
