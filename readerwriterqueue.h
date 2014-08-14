@@ -537,13 +537,11 @@ private:
 	};
 
 private:
-	AE_ALIGN(CACHE_LINE_SIZE)
 	weak_atomic<Block*> frontBlock;		// (Atomic) Elements are enqueued to this block
 	
-	AE_ALIGN(CACHE_LINE_SIZE)
+	char cachelineFiller[CACHE_LINE_SIZE - sizeof(weak_atomic<Block*>)];
 	weak_atomic<Block*> tailBlock;		// (Atomic) Elements are dequeued from this block
 
-	AE_ALIGN(CACHE_LINE_SIZE)	// Ensure tailBlock gets its own cache line
 	size_t largestBlockSize;
 
 #ifndef NDEBUG
