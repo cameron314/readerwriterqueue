@@ -24,6 +24,9 @@ you could use this queue completely from a single thread if you wish (but that w
 Simply drop the readerwriterqueue.h and atomicops.h files into your source code and include them :-)
 A modern compiler is required (MSVC2010+, GCC 4.7+, ICC 13+, or any C++11 compliant compiler should work).
 
+Note: If you're using GCC, you really do need GCC 4.7 or above -- [4.6 has a bug][gcc46bug] that prevents the atomic fence primitives
+from working correctly.
+
 Example:
 
     using namespace moodycamel;
@@ -71,3 +74,4 @@ about lock-free programming.
 [blog]: http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++
 [license]: LICENSE.md
 [benchmarks]: http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++#benchmarks
+[gcc46bug]: http://stackoverflow.com/questions/16429669/stdatomic-thread-fence-has-undefined-reference
