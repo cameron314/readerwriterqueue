@@ -105,6 +105,7 @@ public:
 				(void)element;
 			}
 
+			block->~Block();
 			std::free(block->rawThis);
 			block = nextBlock;
 
