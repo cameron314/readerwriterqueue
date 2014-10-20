@@ -104,11 +104,11 @@ public:
 				element->~T();
 				(void)element;
 			}
-
+			
+			auto rawBlock = block->rawThis;
 			block->~Block();
-			std::free(block->rawThis);
+			std::free(rawBlock);
 			block = nextBlock;
-
 		} while (block != frontBlock_);
 	}
 
