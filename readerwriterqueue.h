@@ -73,8 +73,10 @@ public:
 	{
 		assert(maxSize > 0);
 
-		auto firstBlockRaw = static_cast<char*>(std::malloc(sizeof(Block) + std::alignment_of<Block>::value - 1));
-		auto firstBlock = new (align_for<Block>(firstBlockRaw)) Block(largestBlockSize, firstBlockRaw);
+		auto firstBlock = make_block(largestBlockSize);
+		if (firstBlock == nullptr) {
+			throw std::bad_alloc();
+		}
 		firstBlock->next = firstBlock;
 		
 		frontBlock = firstBlock;
@@ -132,16 +134,18 @@ public:
 
 	// Enqueues a copy of element on the queue.
 	// Allocates an additional block of memory if needed.
-	AE_FORCEINLINE void enqueue(T const& element)
+	// Only fails (returns false) if memory allocation fails.
+	AE_FORCEINLINE bool enqueue(T const& element)
 	{
-		inner_enqueue<CanAlloc>(element);
+		return inner_enqueue<CanAlloc>(element);
 	}
 
 	// Enqueues a moved copy of element on the queue.
 	// Allocates an additional block of memory if needed.
-	AE_FORCEINLINE void enqueue(T&& element)
+	// Only fails (returns false) if memory allocation fails.
+	AE_FORCEINLINE bool enqueue(T&& element)
 	{
-		inner_enqueue<CanAlloc>(std::forward<T>(element));
+		return inner_enqueue<CanAlloc>(std::forward<T>(element));
 	}
 
 
@@ -400,9 +404,12 @@ private:
 		}
 		else if (canAlloc == CanAlloc) {
 			// tailBlock is full and there's no free block ahead; create a new block
+			auto newBlock = make_block(largestBlockSize * 2);
+			if (newBlock == nullptr) {
+				// Could not allocate a block!
+				return false;
+			}
 			largestBlockSize *= 2;
-			auto newBlockRaw = static_cast<char*>(std::malloc(sizeof(Block) + std::alignment_of<Block>::value - 1));
-			auto newBlock = new (align_for<Block>(newBlockRaw)) Block(largestBlockSize, newBlockRaw);
 
 			new (newBlock->data) T(std::forward<U>(element));
 
@@ -455,8 +462,7 @@ private:
 		++x;
 		return x;
 	}
-
-
+	
 	template<typename U>
 	static AE_FORCEINLINE char* align_for(char* ptr)
 	{
@@ -508,34 +514,34 @@ private:
 
 
 		// size must be a power of two (and greater than 0)
-		Block(size_t const& _size, char* rawThis)
-			: front(0), tail(0), next(nullptr), size(_size), rawThis(rawThis)
+		Block(size_t const& _size, char* rawThis, char* _data)
+			: front(0), tail(0), next(nullptr), data(_data), size(_size), rawThis(rawThis)
 		{
-			// Allocate enough memory for an array of Ts, aligned
-			size_t alignment = std::alignment_of<T>::value;
-			data = rawData = static_cast<char*>(std::malloc(sizeof(T) * size + alignment - 1));
-			assert(rawData);
-			auto alignmentOffset = (uintptr_t)rawData % alignment;
-			if (alignmentOffset != 0) { 
-				data += alignment - alignmentOffset;
-			}
-		}
-
-		~Block()
-		{
-			std::free(rawData);
 		}
 
 	private:
 		// C4512 - Assignment operator could not be generated
 		Block& operator=(Block const&);
 
-	private:
-		char* rawData;
-
 	public:
 		char* rawThis;
 	};
+	
+	
+	static Block* make_block(size_t capacity)
+	{
+		// Allocate enough memory for the block itself, as well as all the elements it will contain
+		auto size = sizeof(Block) + std::alignment_of<Block>::value - 1;
+		size += sizeof(T) * capacity + std::alignment_of<T>::value - 1;
+		auto newBlockRaw = static_cast<char*>(std::malloc(size));
+		if (newBlockRaw == nullptr) {
+			return nullptr;
+		}
+		
+		auto newBlockAligned = align_for<Block>(newBlockRaw);
+		auto newBlockData = align_for<T>(newBlockAligned + sizeof(Block));
+		return new (newBlockAligned) Block(capacity, newBlockRaw, newBlockData);
+	}
 
 private:
 	weak_atomic<Block*> frontBlock;		// (Atomic) Elements are enqueued to this block
