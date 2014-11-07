@@ -5,6 +5,8 @@ This mini-repository has my very own implementation of a lock-free queue (that I
 It only supports a two-thread use case (one consuming, and one producing). The threads can't switch roles, though
 you could use this queue completely from a single thread if you wish (but that would sort of defeat the purpose!).
 
+Note: If you need a general purpse multi-producer, multi-consumer lock free queue, I have [one of those too][mpmc].
+
 
 ## Features
 
@@ -75,3 +77,4 @@ about lock-free programming.
 [license]: LICENSE.md
 [benchmarks]: http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++#benchmarks
 [gcc46bug]: http://stackoverflow.com/questions/16429669/stdatomic-thread-fence-has-undefined-reference
+[mppc]: https://github.com/cameron314/concurrentqueue
