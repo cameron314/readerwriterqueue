@@ -77,4 +77,4 @@ about lock-free programming.
 [license]: LICENSE.md
 [benchmarks]: http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++#benchmarks
 [gcc46bug]: http://stackoverflow.com/questions/16429669/stdatomic-thread-fence-has-undefined-reference
-[mppc]: https://github.com/cameron314/concurrentqueue
+[mpmc]: https://github.com/cameron314/concurrentqueue
