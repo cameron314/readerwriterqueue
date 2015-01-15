@@ -514,8 +514,8 @@ private:
 
 
 		// size must be a power of two (and greater than 0)
-		Block(size_t const& _size, char* rawThis, char* _data)
-			: front(0), tail(0), next(nullptr), data(_data), size(_size), rawThis(rawThis)
+		Block(size_t const& _size, char* _rawThis, char* _data)
+			: front(0), tail(0), next(nullptr), data(_data), size(_size), rawThis(_rawThis)
 		{
 		}
 
