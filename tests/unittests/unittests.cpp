@@ -288,8 +288,7 @@ public:
 			int* peeked;
 			for (int i = 0; i != 100000; ++i) {
 				peeked = q.peek();
-				if (peeked != nullptr)
-				{
+				if (peeked != nullptr) {
 					if (q.try_dequeue(item)) {
 						if (item <= prevItem || item != *peeked) {
 							result = 0;
@@ -331,8 +330,7 @@ public:
 			int* peeked;
 			for (int i = 0; i != 100000; ++i) {
 				peeked = q.peek();
-				if (peeked != nullptr)
-				{
+				if (peeked != nullptr) {
 					item = *peeked;
 					if (q.pop()) {
 						if (item <= prevItem) {
