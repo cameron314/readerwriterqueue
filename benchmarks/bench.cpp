@@ -1,4 +1,4 @@
-// ©2013-2014 Cameron Desrochers.
+// ©2013-2015 Cameron Desrochers.
 // Distributed under the simplified BSD license (see the LICENSE file that
 // should have come with this file).
 
@@ -229,7 +229,7 @@ double runBenchmark(BenchmarkType benchmark, unsigned int randomSeed, double& ou
 		forceNoOptimizeDummy = total;
 	} break;
 	case bench_empty_remove: {
-		const counter_t MAX = 400 * 1000;
+		const counter_t MAX = 2000 * 1000;
 		out_Ops = MAX;
 		TQueue q(MAX);
 		int total = 0;
@@ -257,7 +257,7 @@ double runBenchmark(BenchmarkType benchmark, unsigned int randomSeed, double& ou
 		forceNoOptimizeDummy = total;
 	} break;
 	case bench_single_threaded: {
-		const counter_t MAX = 80 * 1000;
+		const counter_t MAX = 200 * 1000;
 		out_Ops = MAX;
 		RNG_t rng(randomSeed);
 		std::uniform_int_distribution<int> rand(0, 1);
@@ -278,16 +278,16 @@ double runBenchmark(BenchmarkType benchmark, unsigned int randomSeed, double& ou
 		forceNoOptimizeDummy = (int)(q.try_dequeue(element));
 	} break;
 	case bench_mostly_add: {
-		const counter_t MAX = 120 * 1000;
+		const counter_t MAX = 1200 * 1000;
 		out_Ops = MAX;
 		int readOps = 0;
 		RNG_t rng(randomSeed);
-		std::uniform_int_distribution<int> rand(0, 7);
+		std::uniform_int_distribution<int> rand(0, 3);
 		TQueue q(MAX);
 		int element = -1;
 		start = getSystemTime();
 		SimpleThread consumer([&]() {
-			for (counter_t i = 0; i != MAX; ++i) {
+			for (counter_t i = 0; i != MAX / 10; ++i) {
 				if (rand(rng) == 0) {
 					q.try_dequeue(element);
 					++readOps;
@@ -308,11 +308,11 @@ double runBenchmark(BenchmarkType benchmark, unsigned int randomSeed, double& ou
 		out_Ops += readOps;
 	} break;
 	case bench_mostly_remove: {
-		const counter_t MAX = 120 * 1000;
+		const counter_t MAX = 1200 * 1000;
 		out_Ops = MAX;
 		int writeOps = 0;
 		RNG_t rng(randomSeed);
-		std::uniform_int_distribution<int> rand(0, 7);
+		std::uniform_int_distribution<int> rand(0, 3);
 		TQueue q(MAX);
 		int element = -1;
 		start = getSystemTime();
@@ -323,7 +323,7 @@ double runBenchmark(BenchmarkType benchmark, unsigned int randomSeed, double& ou
 		});
 		SimpleThread producer([&]() {
 			int num = 0;
-			for (counter_t i = 0; i != MAX; ++i) {
+			for (counter_t i = 0; i != MAX / 10; ++i) {
 				if (rand(rng) == 0) {
 					q.enqueue(num);
 					++num;
@@ -338,7 +338,7 @@ double runBenchmark(BenchmarkType benchmark, unsigned int randomSeed, double& ou
 		out_Ops += writeOps;
 	} break;
 	case bench_heavy_concurrent: {
-		const counter_t MAX = 300 * 1000;
+		const counter_t MAX = 1000 * 1000;
 		out_Ops = MAX * 2;
 		TQueue q(MAX);
 		int element = -1;

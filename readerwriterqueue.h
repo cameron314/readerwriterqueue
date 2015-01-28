@@ -1,4 +1,4 @@
-// ©2013 Cameron Desrochers.
+// ©2013-2015 Cameron Desrochers.
 // Distributed under the simplified BSD license (see the license file that
 // should have come with this header).
 
@@ -75,6 +75,8 @@ public:
 		assert(MAX_BLOCK_SIZE == ceilToPow2(MAX_BLOCK_SIZE) && "MAX_BLOCK_SIZE must be a power of 2");
 		assert(MAX_BLOCK_SIZE >= 2 && "MAX_BLOCK_SIZE must be at least 2");
 		
+		Block* firstBlock = nullptr;
+		
 		largestBlockSize = ceilToPow2(maxSize + 1);		// We need a spare slot to fit maxSize elements in the block
 		if (largestBlockSize > MAX_BLOCK_SIZE * 2) {
 			// We need a spare block in case the producer is writing to a different block the consumer is reading from, and
@@ -84,7 +86,6 @@ public:
 			// number of blocks - 1. Solving for maxSize and applying a ceiling to the division gives us (after simplifying):
 			size_t initialBlockCount = (maxSize + MAX_BLOCK_SIZE * 2 - 3) / (MAX_BLOCK_SIZE - 1);
 			largestBlockSize = MAX_BLOCK_SIZE;
-			Block* firstBlock = nullptr;
 			Block* lastBlock = nullptr;
 			for (size_t i = 0; i != initialBlockCount; ++i) {
 				auto block = make_block(largestBlockSize);
@@ -100,18 +101,16 @@ public:
 				lastBlock = block;
 				block->next = firstBlock;
 			}
-			frontBlock = firstBlock;
-			tailBlock = lastBlock;
 		}
 		else {
-			auto firstBlock = make_block(largestBlockSize);
+			firstBlock = make_block(largestBlockSize);
 			if (firstBlock == nullptr) {
 				throw std::bad_alloc();
 			}
 			firstBlock->next = firstBlock;
-			frontBlock = firstBlock;
-			tailBlock = firstBlock;
 		}
+		frontBlock = firstBlock;
+		tailBlock = firstBlock;
 		
 		// Make sure the reader/writer threads will have the initialized memory setup above:
 		fence(memory_order_sync);
@@ -132,7 +131,7 @@ public:
 			size_t blockFront = block->front;
 			size_t blockTail = block->tail;
 
-			for (size_t i = blockFront; i != blockTail; i = (i + 1) & block->sizeMask()) {
+			for (size_t i = blockFront; i != blockTail; i = (i + 1) & block->sizeMask) {
 				auto element = reinterpret_cast<T*>(block->data + i * sizeof(T));
 				element->~T();
 				(void)element;
@@ -208,11 +207,10 @@ public:
 		// block has advanced.
 		
 		Block* frontBlock_ = frontBlock.load();
-		Block* tailBlock_;
 		size_t blockTail = frontBlock_->localTail;
 		size_t blockFront = frontBlock_->front.load();
 		
-		if (blockFront != blockTail || blockFront != (blockTail = frontBlock_->localTail = frontBlock_->tail.load())) {
+		if (blockFront != blockTail || blockFront != (frontBlock_->localTail = frontBlock_->tail.load())) {
 			fence(memory_order_acquire);
 			
 		non_empty_front_block:
@@ -221,12 +219,12 @@ public:
 			result = std::move(*element);
 			element->~T();
 
-			blockFront = (blockFront + 1) & frontBlock_->sizeMask();
+			blockFront = (blockFront + 1) & frontBlock_->sizeMask;
 
 			fence(memory_order_release);
 			frontBlock_->front = blockFront;
 		}
-		else if (frontBlock_ != (tailBlock_ = tailBlock.load())) {
+		else if (frontBlock_ != tailBlock.load()) {
 			fence(memory_order_acquire);
 
 			frontBlock_ = frontBlock.load();
@@ -265,7 +263,7 @@ public:
 			result = std::move(*element);
 			element->~T();
 
-			nextBlockFront = (nextBlockFront + 1) & frontBlock_->sizeMask();
+			nextBlockFront = (nextBlockFront + 1) & frontBlock_->sizeMask;
 			
 			fence(memory_order_release);
 			frontBlock_->front = nextBlockFront;
@@ -292,16 +290,15 @@ public:
 		// See try_dequeue() for reasoning
 
 		Block* frontBlock_ = frontBlock.load();
-		Block* tailBlock_;
 		size_t blockTail = frontBlock_->localTail;
 		size_t blockFront = frontBlock_->front.load();
 		
-		if (blockFront != blockTail || blockFront != (blockTail = frontBlock_->localTail = frontBlock_->tail.load())) {
+		if (blockFront != blockTail || blockFront != (frontBlock_->localTail = frontBlock_->tail.load())) {
 			fence(memory_order_acquire);
 		non_empty_front_block:
 			return reinterpret_cast<T*>(frontBlock_->data + blockFront * sizeof(T));
 		}
-		else if (frontBlock_ != (tailBlock_ = tailBlock.load())) {
+		else if (frontBlock_ != tailBlock.load()) {
 			fence(memory_order_acquire);
 			frontBlock_ = frontBlock.load();
 			blockTail = frontBlock_->localTail = frontBlock_->tail.load();
@@ -335,23 +332,22 @@ public:
 		// See try_dequeue() for reasoning
 		
 		Block* frontBlock_ = frontBlock.load();
-		Block* tailBlock_;
 		size_t blockTail = frontBlock_->localTail;
 		size_t blockFront = frontBlock_->front.load();
 		
-		if (blockFront != blockTail || blockFront != (blockTail = frontBlock_->localTail = frontBlock_->tail.load())) {
+		if (blockFront != blockTail || blockFront != (frontBlock_->localTail = frontBlock_->tail.load())) {
 			fence(memory_order_acquire);
 			
 		non_empty_front_block:
 			auto element = reinterpret_cast<T*>(frontBlock_->data + blockFront * sizeof(T));
 			element->~T();
 
-			blockFront = (blockFront + 1) & frontBlock_->sizeMask();
+			blockFront = (blockFront + 1) & frontBlock_->sizeMask;
 
 			fence(memory_order_release);
 			frontBlock_->front = blockFront;
 		}
-		else if (frontBlock_ != (tailBlock_ = tailBlock.load())) {
+		else if (frontBlock_ != tailBlock.load()) {
 			fence(memory_order_acquire);
 			frontBlock_ = frontBlock.load();
 			blockTail = frontBlock_->localTail = frontBlock_->tail.load();
@@ -380,7 +376,7 @@ public:
 			auto element = reinterpret_cast<T*>(frontBlock_->data + nextBlockFront * sizeof(T));
 			element->~T();
 
-			nextBlockFront = (nextBlockFront + 1) & frontBlock_->sizeMask();
+			nextBlockFront = (nextBlockFront + 1) & frontBlock_->sizeMask;
 			
 			fence(memory_order_release);
 			frontBlock_->front = nextBlockFront;
@@ -404,7 +400,7 @@ public:
 			fence(memory_order_acquire);
 			size_t blockFront = block->front.load();
 			size_t blockTail = block->tail.load();
-			result += (blockTail - blockFront) & block->sizeMask();
+			result += (blockTail - blockFront) & block->sizeMask;
 			block = block->next.load();
 		} while (block != frontBlock_);
 		return result;
@@ -432,8 +428,8 @@ private:
 		size_t blockFront = tailBlock_->localFront;
 		size_t blockTail = tailBlock_->tail.load();
 
-		size_t nextBlockTail = (blockTail + 1) & tailBlock_->sizeMask();
-		if (nextBlockTail != blockFront || nextBlockTail != (blockFront = tailBlock_->localFront = tailBlock_->front.load())) {
+		size_t nextBlockTail = (blockTail + 1) & tailBlock_->sizeMask;
+		if (nextBlockTail != blockFront || nextBlockTail != (tailBlock_->localFront = tailBlock_->front.load())) {
 			fence(memory_order_acquire);
 			// This block has room for at least one more element
 			char* location = tailBlock_->data + blockTail * sizeof(T);
@@ -466,7 +462,7 @@ private:
 				char* location = tailBlockNext->data + nextBlockTail * sizeof(T);
 				new (location) T(std::forward<U>(element));
 
-				tailBlockNext->tail = (nextBlockTail + 1) & tailBlockNext->sizeMask();
+				tailBlockNext->tail = (nextBlockTail + 1) & tailBlockNext->sizeMask;
 
 				fence(memory_order_release);
 				tailBlock = tailBlockNext;
@@ -580,14 +576,12 @@ private:
 		
 		char* data;		// Contents (on heap) are aligned to T's alignment
 
-		const size_t size;
-
-		AE_FORCEINLINE size_t sizeMask() const { return size - 1; }
+		const size_t sizeMask;
 
 
 		// size must be a power of two (and greater than 0)
 		Block(size_t const& _size, char* rawThis, char* _data)
-			: front(0), localTail(0), tail(0), localFront(0), next(nullptr), data(_data), size(_size), rawThis(rawThis)
+			: front(0), localTail(0), tail(0), localFront(0), next(nullptr), data(_data), sizeMask(_size - 1), rawThis(rawThis)
 		{
 		}
 

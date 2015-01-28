@@ -1,4 +1,4 @@
-// ©2013 Cameron Desrochers
+// ©2013-2015 Cameron Desrochers
 // Unit tests for moodycamel::ReaderWriterQueue
 
 #include <cstdio>
@@ -53,6 +53,7 @@ public:
 		REGISTER_TEST(enqueue_many);
 		REGISTER_TEST(nonempty_destroy);
 		REGISTER_TEST(try_enqueue);
+		REGISTER_TEST(try_dequeue);
 		REGISTER_TEST(peek);
 		REGISTER_TEST(pop);
 		REGISTER_TEST(size_approx);
@@ -236,6 +237,23 @@ public:
 					--size;
 				}
 			}
+		}
+		
+		return true;
+	}
+	
+	bool try_dequeue()
+	{
+		int item;
+		
+		{
+			ReaderWriterQueue<int> q(1);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
+		
+		{
+			ReaderWriterQueue<int, 2> q(10);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
 		
 		return true;
