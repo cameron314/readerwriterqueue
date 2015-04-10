@@ -1,7 +1,11 @@
 This license applies to all the code in this repository except that written by third
-parties, namely the files in benchmarks/ext, which have their own licenses.
+parties, namely the files in benchmarks/ext, which have their own licenses, and Jeff
+Preshing's semaphore implementation (used in the blocking queue) which has a zlib
+license (embedded in atomicops.h).
 
-Copyright (c) 2013, Cameron Desrochers  
+Simplified BSD License:
+
+Copyright (c) 2013-2015, Cameron Desrochers  
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
