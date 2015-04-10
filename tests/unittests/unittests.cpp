@@ -58,6 +58,7 @@ public:
 		REGISTER_TEST(pop);
 		REGISTER_TEST(size_approx);
 		REGISTER_TEST(threaded);
+		REGISTER_TEST(blocking);
 	}
 	
 	bool create_empty_queue()
@@ -425,6 +426,60 @@ public:
 		reader.join();
 		
 		return result.load() == 1 ? true : false;
+	}
+	
+	bool blocking()
+	{
+		{
+			BlockingReaderWriterQueue<int> q;
+			int item;
+			
+			q.enqueue(123);
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item == 123);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			
+			q.enqueue(234);
+			ASSERT_OR_FAIL(q.size_approx() == 1);
+			ASSERT_OR_FAIL(*q.peek() == 234);
+			ASSERT_OR_FAIL(*q.peek() == 234);
+			ASSERT_OR_FAIL(q.pop());
+			
+			ASSERT_OR_FAIL(q.try_enqueue(345));
+			q.wait_dequeue(item);
+			ASSERT_OR_FAIL(item == 345);
+			ASSERT_OR_FAIL(!q.peek());
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(!q.try_dequeue(item));
+		}
+		
+		weak_atomic<int> result;
+		result = 1;
+		
+		BlockingReaderWriterQueue<int> q(100);
+		SimpleThread reader([&]() {
+			int item = -1;
+			int prevItem = -1;
+			for (int i = 0; i != 1000000; ++i) {
+				q.wait_dequeue(item);
+				if (item <= prevItem) {
+					result = 0;
+				}
+				prevItem = item;
+			}
+		});
+		SimpleThread writer([&]() {
+			for (int i = 0; i != 1000000; ++i) {
+				q.enqueue(i);
+			}
+		});
+		
+		writer.join();
+		reader.join();
+		
+		ASSERT_OR_FAIL(q.size_approx() == 0);
+		
+		return result.load() ? 1 : 0;
 	}
 };
 

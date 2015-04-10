@@ -623,6 +623,140 @@ private:
 #endif
 };
 
+// Like ReaderWriterQueue, but also providees blocking operations
+template<typename T, size_t MAX_BLOCK_SIZE = 512>
+class BlockingReaderWriterQueue
+{
+private:
+	typedef ::moodycamel::ReaderWriterQueue<T, MAX_BLOCK_SIZE> ReaderWriterQueue;
+	
+public:
+	explicit BlockingReaderWriterQueue(size_t maxSize = 15)
+		: inner(maxSize)
+	{ }
+
+	
+	// Enqueues a copy of element if there is room in the queue.
+	// Returns true if the element was enqueued, false otherwise.
+	// Does not allocate memory.
+	AE_FORCEINLINE bool try_enqueue(T const& element)
+	{
+		if (inner.try_enqueue(element)) {
+			sema.signal();
+			return true;
+		}
+		return false;
+	}
+
+	// Enqueues a moved copy of element if there is room in the queue.
+	// Returns true if the element was enqueued, false otherwise.
+	// Does not allocate memory.
+	AE_FORCEINLINE bool try_enqueue(T&& element)
+	{
+		if (inner.try_enqueue(std::forward<T>(element))) {
+			sema.signal();
+			return true;
+		}
+		return false;
+	}
+
+
+	// Enqueues a copy of element on the queue.
+	// Allocates an additional block of memory if needed.
+	// Only fails (returns false) if memory allocation fails.
+	AE_FORCEINLINE bool enqueue(T const& element)
+	{
+		if (inner.enqueue(element)) {
+			sema.signal();
+			return true;
+		}
+		return false;
+	}
+
+	// Enqueues a moved copy of element on the queue.
+	// Allocates an additional block of memory if needed.
+	// Only fails (returns false) if memory allocation fails.
+	AE_FORCEINLINE bool enqueue(T&& element)
+	{
+		if (inner.enqueue(std::forward<T>(element))) {
+			sema.signal();
+			return true;
+		}
+		return false;
+	}
+
+
+	// Attempts to dequeue an element; if the queue is empty,
+	// returns false instead. If the queue has at least one element,
+	// moves front to result using operator=, then returns true.
+	template<typename U>
+	bool try_dequeue(U& result)
+	{
+		if (sema.tryWait()) {
+			bool success = inner.try_dequeue(result);
+			assert(success);
+			AE_UNUSED(success);
+			return true;
+		}
+		return false;
+	}
+	
+	
+	// Attempts to dequeue an element; if the queue is empty,
+	// waits until an element is available, then dequeues it.
+	template<typename U>
+	void wait_dequeue(U& result)
+	{
+		sema.wait();
+		bool success = inner.try_dequeue(result);
+		AE_UNUSED(result);
+		assert(success);
+		AE_UNUSED(success);
+	}
+
+
+	// Returns a pointer to the front element in the queue (the one that
+	// would be removed next by a call to `try_dequeue` or `pop`). If the
+	// queue appears empty at the time the method is called, nullptr is
+	// returned instead.
+	// Must be called only from the consumer thread.
+	AE_FORCEINLINE T* peek()
+	{
+		return inner.peek();
+	}
+	
+	// Removes the front element from the queue, if any, without returning it.
+	// Returns true on success, or false if the queue appeared empty at the time
+	// `pop` was called.
+	AE_FORCEINLINE bool pop()
+	{
+		if (sema.tryWait()) {
+			bool result = inner.pop();
+			assert(result);
+			AE_UNUSED(result);
+			return true;
+		}
+		return false;
+	}
+	
+	// Returns the approximate number of items currently in the queue.
+	// Safe to call from both the producer and consumer threads.
+	AE_FORCEINLINE size_t size_approx() const
+	{
+		return sema.availableApprox();
+	}
+
+
+private:
+	// Disable copying & assignment
+	BlockingReaderWriterQueue(ReaderWriterQueue const&) {  }
+	BlockingReaderWriterQueue& operator=(ReaderWriterQueue const&) {  }
+	
+private:
+	ReaderWriterQueue inner;
+	spsc_sema::LightweightSemaphore sema;
+};
+
 }    // end namespace moodycamel
 
 #ifdef AE_VCPP

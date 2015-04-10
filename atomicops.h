@@ -1,6 +1,8 @@
-﻿// ©2013 Cameron Desrochers.
+﻿// ©2013-2015 Cameron Desrochers.
 // Distributed under the simplified BSD license (see the license file that
 // should have come with this header).
+// Uses Jeff Preshing's semaphore implementation (under the terms of its
+// separate zlib license, embedded below).
 
 #pragma once
 
@@ -10,6 +12,7 @@
 // Uses the AE_* prefix for macros (historical reasons), and the "moodycamel" namespace for symbols.
 
 #include <cassert>
+#include <type_traits>
 
 
 // Platform detection
@@ -78,7 +81,7 @@ enum memory_order {
 
 }    // end namespace moodycamel
 
-#if defined(AE_VCPP) || defined(AE_ICC)
+#if (defined(AE_VCPP) && _MSC_VER < 1700) || defined(AE_ICC)
 // VS2010 and ICC13 don't support std::atomic_*_fence, implement our own fences
 
 #include <intrin.h>
@@ -201,8 +204,6 @@ AE_FORCEINLINE void fence(memory_order order)
 #endif
 
 
-
-
 #if !defined(AE_VCPP) || _MSC_VER >= 1700
 #define AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
 #endif
@@ -240,6 +241,34 @@ public:
 	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) { value = other.value; return *this; }
 	
 	AE_FORCEINLINE T load() const { return value; }
+	
+	AE_FORCEINLINE T fetch_add_acquire(T increment)
+	{
+#if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
+		if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
+#if defined(_M_AMD64)
+		else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
+#endif
+#else
+#error Unsupported platform
+#endif
+		assert(false && "T must be either a 32 or 64 bit type");
+		return value;
+	}
+	
+	AE_FORCEINLINE T fetch_add_release(T increment)
+	{
+#if defined(AE_ARCH_X64) || defined(AE_ARCH_X86)
+		if (sizeof(T) == 4) return _InterlockedExchangeAdd((long volatile*)&value, (long)increment);
+#if defined(_M_AMD64)
+		else if (sizeof(T) == 8) return _InterlockedExchangeAdd64((long long volatile*)&value, (long long)increment);
+#endif
+#else
+#error Unsupported platform
+#endif
+		assert(false && "T must be either a 32 or 64 bit type");
+		return value;
+	}
 #else
 	template<typename U>
 	AE_FORCEINLINE weak_atomic const& operator=(U&& x)
@@ -255,6 +284,16 @@ public:
 	}
 
 	AE_FORCEINLINE T load() const { return value.load(std::memory_order_relaxed); }
+	
+	AE_FORCEINLINE T fetch_add_acquire(T increment)
+	{
+		return value.fetch_add(increment, std::memory_order_acquire);
+	}
+	
+	AE_FORCEINLINE T fetch_add_release(T increment)
+	{
+		return value.fetch_add(increment, std::memory_order_release);
+	}
 #endif
 	
 
@@ -270,6 +309,258 @@ private:
 
 }	// end namespace moodycamel
 
+
+
+// Portable single-producer, single-consumer semaphore below:
+
+#if defined(_WIN32)
+// Avoid including windows.h in a header; we only need a handful of
+// items, so we'll redeclare them here (this is relatively safe since
+// the API generally has to remain stable between Windows versions).
+// I know this is an ugly hack but it still beats polluting the global
+// namespace with thousands of generic names or adding a .cpp for nothing.
+extern "C" {
+	struct _SECURITY_ATTRIBUTES;
+	__declspec(dllimport) void* __stdcall CreateSemaphoreW(_SECURITY_ATTRIBUTES* lpSemaphoreAttributes, long lInitialCount, long lMaximumCount, const wchar_t* lpName);
+	__declspec(dllimport) int __stdcall CloseHandle(void* hObject);
+	__declspec(dllimport) unsigned long __stdcall WaitForSingleObject(void* hHandle, unsigned long dwMilliseconds);
+	__declspec(dllimport) int __stdcall ReleaseSemaphore(void* hSemaphore, long lReleaseCount, long* lpPreviousCount);
+}
+#elif defined(__MACH__)
+#include <mach/mach.h>
+#elif defined(__unix__)
+#include <semaphore.h>
+#endif
+
+namespace moodycamel
+{
+	// Code in the spsc_sema namespace below is an adaptation of Jeff Preshing's
+	// portable + lightweight semaphore implementations, originally from
+	// https://github.com/preshing/cpp11-on-multicore/blob/master/common/sema.h
+	// LICENSE:
+	// Copyright (c) 2015 Jeff Preshing
+	//
+	// This software is provided 'as-is', without any express or implied
+	// warranty. In no event will the authors be held liable for any damages
+	// arising from the use of this software.
+	//
+	// Permission is granted to anyone to use this software for any purpose,
+	// including commercial applications, and to alter it and redistribute it
+	// freely, subject to the following restrictions:
+	//
+	// 1. The origin of this software must not be misrepresented; you must not
+	//    claim that you wrote the original software. If you use this software
+	//    in a product, an acknowledgement in the product documentation would be
+	//    appreciated but is not required.
+	// 2. Altered source versions must be plainly marked as such, and must not be
+	//    misrepresented as being the original software.
+	// 3. This notice may not be removed or altered from any source distribution.
+	namespace spsc_sema
+	{
+#if defined(_WIN32)
+		class Semaphore
+		{
+		private:
+		    void* m_hSema;
+		    
+		    Semaphore(const Semaphore& other);
+		    Semaphore& operator=(const Semaphore& other);
+
+		public:
+		    Semaphore(int initialCount = 0)
+		    {
+		        assert(initialCount >= 0);
+		        const long maxLong = 0x7fffffff;
+		        m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
+		    }
+
+		    ~Semaphore()
+		    {
+		        CloseHandle(m_hSema);
+		    }
+
+		    void wait()
+		    {
+		    	const unsigned long infinite = 0xffffffff;
+		        WaitForSingleObject(m_hSema, infinite);
+		    }
+
+		    void signal(int count = 1)
+		    {
+		        ReleaseSemaphore(m_hSema, count, nullptr);
+		    }
+		};
+#elif defined(__MACH__)
+		//---------------------------------------------------------
+		// Semaphore (Apple iOS and OSX)
+		// Can't use POSIX semaphores due to http://lists.apple.com/archives/darwin-kernel/2009/Apr/msg00010.html
+		//---------------------------------------------------------
+		class Semaphore
+		{
+		private:
+		    semaphore_t m_sema;
+
+		    Semaphore(const Semaphore& other);
+		    Semaphore& operator=(const Semaphore& other);
+
+		public:
+		    Semaphore(int initialCount = 0)
+		    {
+		        assert(initialCount >= 0);
+		        semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
+		    }
+
+		    ~Semaphore()
+		    {
+		        semaphore_destroy(mach_task_self(), m_sema);
+		    }
+
+		    void wait()
+		    {
+		        semaphore_wait(m_sema);
+		    }
+
+		    void signal()
+		    {
+		        semaphore_signal(m_sema);
+		    }
+
+		    void signal(int count)
+		    {
+		        while (count-- > 0)
+		        {
+		            semaphore_signal(m_sema);
+		        }
+		    }
+		};
+#elif defined(__unix__)
+		//---------------------------------------------------------
+		// Semaphore (POSIX, Linux)
+		//---------------------------------------------------------
+		class Semaphore
+		{
+		private:
+		    sem_t m_sema;
+
+		    Semaphore(const Semaphore& other);
+		    Semaphore& operator=(const Semaphore& other);
+
+		public:
+		    Semaphore(int initialCount = 0)
+		    {
+		        assert(initialCount >= 0);
+		        sem_init(&m_sema, 0, initialCount);
+		    }
+
+		    ~Semaphore()
+		    {
+		        sem_destroy(&m_sema);
+		    }
+
+		    void wait()
+		    {
+		        // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
+		        int rc;
+		        do
+		        {
+		            rc = sem_wait(&m_sema);
+		        }
+		        while (rc == -1 && errno == EINTR);
+		    }
+
+		    void signal()
+		    {
+		        sem_post(&m_sema);
+		    }
+
+		    void signal(int count)
+		    {
+		        while (count-- > 0)
+		        {
+		            sem_post(&m_sema);
+		        }
+		    }
+		};
+#else
+#error Unsupported platform! (No semaphore wrapper available)
+#endif
+
+		//---------------------------------------------------------
+		// LightweightSemaphore
+		//---------------------------------------------------------
+		class LightweightSemaphore
+		{
+		public:
+			typedef std::make_signed<std::size_t>::type ssize_t;
+			
+		private:
+		    weak_atomic<ssize_t> m_count;
+		    Semaphore m_sema;
+
+		    void waitWithPartialSpinning()
+		    {
+		        ssize_t oldCount;
+		        // Is there a better way to set the initial spin count?
+		        // If we lower it to 1000, testBenaphore becomes 15x slower on my Core i7-5930K Windows PC,
+		        // as threads start hitting the kernel semaphore.
+		        int spin = 10000;
+		        while (--spin >= 0)
+		        {
+		            if (m_count.load() > 0)
+		            {
+		                m_count.fetch_add_acquire(-1);
+		                return;
+		            }
+		            compiler_fence(memory_order_acquire);     // Prevent the compiler from collapsing the loop.
+		        }
+		        oldCount = m_count.fetch_add_acquire(-1);
+		        if (oldCount <= 0)
+		        {
+		            m_sema.wait();
+		        }
+		    }
+
+		public:
+		    LightweightSemaphore(ssize_t initialCount = 0) : m_count(initialCount)
+		    {
+		        assert(initialCount >= 0);
+		    }
+
+		    bool tryWait()
+		    {
+		        if (m_count.load() > 0)
+		        {
+		        	m_count.fetch_add_acquire(-1);
+		        	return true;
+		        }
+		        return false;
+		    }
+
+		    void wait()
+		    {
+		        if (!tryWait())
+		            waitWithPartialSpinning();
+		    }
+
+		    void signal(ssize_t count = 1)
+		    {
+		    	assert(count >= 0);
+		        ssize_t oldCount = m_count.fetch_add_release(count);
+		        assert(oldCount >= -1);
+		        if (oldCount < 0)
+		        {
+		            m_sema.signal(1);
+		        }
+		    }
+		    
+		    ssize_t availableApprox() const
+		    {
+		    	ssize_t count = m_count.load();
+		    	return count > 0 ? count : 0;
+		    }
+		};
+	}	// end namespace spsc_sema
+}	// end namespace moodycamel
 
 #ifdef AE_VCPP
 #pragma warning(pop)
