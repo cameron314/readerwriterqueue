@@ -17,6 +17,7 @@ Note: If you need a general purpse multi-producer, multi-consumer lock free queu
 - Allocates memory up front, in contiguous blocks
 - Provides a `try_enqueue` method which is guaranteed never to allocate memory (the queue starts with an initial capacity)
 - Also provides an `enqueue` method which can dynamically grow the size of the queue as needed
+- Also provides a blocking version with `wait_dequeue`
 - Completely "wait-free" (no compare-and-swap loop). Enqueue and dequeue are always O(1) (not counting memory allocation)
 - On x86, the memory barriers compile down to no-ops, meaning enqueue and dequeue are just a simple series of loads and stores (and branches)
 
@@ -48,6 +49,27 @@ Example:
     int* front = q.peek();              // Returns nullptr if the queue was empty
     assert(front == nullptr);
     
+
+The blocking version has the exact same API, with the addition of a `wait_dequeue` method:
+
+    BlockingReaderWriterQueue<int> q;
+    
+    std::thread reader([&]() {
+        int item;
+        for (int i = 0; i != 100; ++i) {
+            q.wait_dequeue(item);
+        }
+    });
+    std::thread writer([&]() {
+        for (int i = 0; i != 100; ++i) {
+            q.enqueue(i);
+        }
+    });
+    writer.join();
+    reader.join();
+    
+    assert(q.size_approx() == 0);
+
     
 ## Disclaimers
 
