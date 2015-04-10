@@ -69,6 +69,11 @@ The blocking version has the exact same API, with the addition of a `wait_dequeu
     reader.join();
     
     assert(q.size_approx() == 0);
+    
+Note that `wait_dequeue` will block indefinitely while the queue is empty; this
+means care must be taken to only call `wait_dequeue` if you're sure another element
+will come along eventually, or if the queue has a static lifetime. This is because
+destroying the queue while a thread is waiting on it will invoke undefined behaviour.
 
     
 ## Disclaimers
