@@ -562,6 +562,6 @@ namespace moodycamel
 	}	// end namespace spsc_sema
 }	// end namespace moodycamel
 
-#ifdef AE_VCPP
+#if defined(AE_VCPP) && _MSC_VER < 1700
 #pragma warning(pop)
 #endif
