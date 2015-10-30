@@ -5,6 +5,7 @@
 #pragma once
 
 #include "atomicops.h"
+#include <new>
 #include <type_traits>
 #include <utility>
 #include <cassert>
