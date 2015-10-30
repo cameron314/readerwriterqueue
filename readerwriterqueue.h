@@ -406,6 +406,27 @@ public:
 		return result;
 	}
 
+	// Returns the total number of items that could be enqueued without incurring
+	// an allocation when this queue is empty.
+	// Safe to call from both the producer and consumer threads.
+	//
+	// NOTE: The actual capacity during usage may be different depending on the consumer.
+	//       If the consumer is removing elements concurrently, the producer cannot add to
+	//       the block the consumer is removing from until it's completely empty, except in
+	//       the case where the producer was writing to the same block the consumer was
+	//       reading from the whole time.
+	inline size_t max_capacity() const {
+		size_t result = 0;
+		Block* frontBlock_ = frontBlock.load();
+		Block* block = frontBlock_;
+		do {
+			fence(memory_order_acquire);
+			result += block->sizeMask;
+			block = block->next.load();
+		} while (block != frontBlock_);
+		return result;
+	}
+
 
 private:
 	enum AllocationMode { CanAlloc, CannotAlloc };
@@ -513,7 +534,6 @@ private:
 
 	// Disable assignment
 	ReaderWriterQueue& operator=(ReaderWriterQueue const&) {  }
-
 
 
 	AE_FORCEINLINE static size_t ceilToPow2(size_t x)
@@ -746,6 +766,18 @@ public:
 		return sema.availableApprox();
 	}
 
+	// Returns the total number of items that could be enqueued without incurring
+	// an allocation when this queue is empty.
+	// Safe to call from both the producer and consumer threads.
+	//
+	// NOTE: The actual capacity during usage may be different depending on the consumer.
+	//       If the consumer is removing elements concurrently, the producer cannot add to
+	//       the block the consumer is removing from until it's completely empty, except in
+	//       the case where the producer was writing to the same block the consumer was
+	//       reading from the whole time.
+	AE_FORCEINLINE size_t max_capacity() const {
+		return inner.max_capacity();
+	}
 
 private:
 	// Disable copying & assignment

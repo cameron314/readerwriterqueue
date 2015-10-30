@@ -42,6 +42,22 @@ private:
 };
 
 
+/// Extracted from private static method of ReaderWriterQueue
+size_t ceilToPow2(size_t x)
+{
+	// From http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+	--x;
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	for (size_t i = 1; i < sizeof(size_t); i <<= 1) {
+		x |= x >> (i << 3);
+	}
+	++x;
+	return x;
+}
+
+
 
 class ReaderWriterQueueTests : public TestClass<ReaderWriterQueueTests>
 {
@@ -57,6 +73,7 @@ public:
 		REGISTER_TEST(peek);
 		REGISTER_TEST(pop);
 		REGISTER_TEST(size_approx);
+		REGISTER_TEST(max_capacity);
 		REGISTER_TEST(threaded);
 		REGISTER_TEST(blocking);
 	}
@@ -426,6 +443,23 @@ public:
 		reader.join();
 		
 		return result.load() == 1 ? true : false;
+	}
+	
+	bool max_capacity()
+	{
+		{
+			// this math for queue size estimation is only valid for q_size <= 256
+			for (size_t q_size = 2; q_size < 256; ++q_size) {
+				ReaderWriterQueue<int> q(q_size);
+				ASSERT_OR_FAIL(q.max_capacity() == ceilToPow2(q_size+1)-1);
+
+				const size_t start_cap = q.max_capacity();
+				for (size_t i = 0; i < start_cap+1; ++i) // fill 1 past capacity to resize
+					q.enqueue(i);
+				ASSERT_OR_FAIL(q.max_capacity() == 3*start_cap+1);
+			}
+		}
+		return true;
 	}
 	
 	bool blocking()
