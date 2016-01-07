@@ -32,43 +32,46 @@ from working correctly.
 
 Example:
 
-    using namespace moodycamel;
-    
-    ReaderWriterQueue<int> q(100);       // Reserve space for at least 100 elements up front
-    
-    q.enqueue(17);                       // Will allocate memory if the queue is full
-    bool succeeded = q.try_enqueue(18);  // Will only succeed if the queue has an empty slot (never allocates)
-    assert(succeeded);
-    
-    int number;
-    succeeded = q.try_dequeue(number);  // Returns false if the queue was empty
-    
-    assert(succeeded && number == 17);
-    
-    // You can also peek at the front item of the queue (consumer only)
-    int* front = q.peek();              // Returns nullptr if the queue was empty
-    assert(front == nullptr);
-    
+```cpp
+using namespace moodycamel;
+
+ReaderWriterQueue<int> q(100);       // Reserve space for at least 100 elements up front
+
+q.enqueue(17);                       // Will allocate memory if the queue is full
+bool succeeded = q.try_enqueue(18);  // Will only succeed if the queue has an empty slot (never allocates)
+assert(succeeded);
+
+int number;
+succeeded = q.try_dequeue(number);  // Returns false if the queue was empty
+
+assert(succeeded && number == 17);
+
+// You can also peek at the front item of the queue (consumer only)
+int* front = q.peek();              // Returns nullptr if the queue was empty
+assert(front == nullptr);
+```
 
 The blocking version has the exact same API, with the addition of a `wait_dequeue` method:
 
-    BlockingReaderWriterQueue<int> q;
-    
-    std::thread reader([&]() {
-        int item;
-        for (int i = 0; i != 100; ++i) {
-            q.wait_dequeue(item);
-        }
-    });
-    std::thread writer([&]() {
-        for (int i = 0; i != 100; ++i) {
-            q.enqueue(i);
-        }
-    });
-    writer.join();
-    reader.join();
-    
-    assert(q.size_approx() == 0);
+```cpp
+BlockingReaderWriterQueue<int> q;
+
+std::thread reader([&]() {
+    int item;
+    for (int i = 0; i != 100; ++i) {
+        q.wait_dequeue(item);
+    }
+});
+std::thread writer([&]() {
+    for (int i = 0; i != 100; ++i) {
+        q.enqueue(i);
+    }
+});
+writer.join();
+reader.join();
+
+assert(q.size_approx() == 0);
+```
     
 Note that `wait_dequeue` will block indefinitely while the queue is empty; this
 means care must be taken to only call `wait_dequeue` if you're sure another element
