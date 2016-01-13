@@ -47,8 +47,12 @@ succeeded = q.try_dequeue(number);  // Returns false if the queue was empty
 assert(succeeded && number == 17);
 
 // You can also peek at the front item of the queue (consumer only)
-int* front = q.peek();              // Returns nullptr if the queue was empty
-assert(front == nullptr);
+int* front = q.peek();
+assert(*front == 18);
+succeeded = q.try_dequeue(number);
+assert(succeeded && number == 18);
+front = q.peek(); 
+assert(front == nullptr);           // Returns nullptr if the queue was empty
 ```
 
 The blocking version has the exact same API, with the addition of a `wait_dequeue` method:
