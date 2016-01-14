@@ -81,7 +81,7 @@ enum memory_order {
 
 }    // end namespace moodycamel
 
-#if (defined(AE_VCPP) && _MSC_VER < 1700) || defined(AE_ICC)
+#if (defined(AE_VCPP) && (_MSC_VER < 1700 || defined(__cplusplus_cli))) || defined(AE_ICC)
 // VS2010 and ICC13 don't support std::atomic_*_fence, implement our own fences
 
 #include <intrin.h>
@@ -102,6 +102,9 @@ enum memory_order {
 #ifdef AE_VCPP
 #pragma warning(push)
 #pragma warning(disable: 4365)		// Disable erroneous 'conversion from long to unsigned int, signed/unsigned mismatch' error when using `assert`
+#ifdef __cplusplus_cli
+#pragma managed(push, off)
+#endif
 #endif
 
 namespace moodycamel {
@@ -204,7 +207,7 @@ AE_FORCEINLINE void fence(memory_order order)
 #endif
 
 
-#if !defined(AE_VCPP) || _MSC_VER >= 1700
+#if !defined(AE_VCPP) || (_MSC_VER >= 1700 && !defined(__cplusplus_cli))
 #define AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
 #endif
 
@@ -227,6 +230,10 @@ public:
 #pragma warning(disable: 4100)		// Get rid of (erroneous) 'unreferenced formal parameter' warning
 #endif
 	template<typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) {  }
+#ifdef __cplusplus_cli
+	// Work around bug with universal reference/nullptr combination that only appears when /clr is on
+	weak_atomic(nullptr_t) : value(nullptr) {  }
+#endif
 	weak_atomic(weak_atomic const& other) : value(other.value) {  }
 	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) {  }
 #ifdef AE_VCPP
@@ -562,6 +569,9 @@ namespace moodycamel
 	}	// end namespace spsc_sema
 }	// end namespace moodycamel
 
-#if defined(AE_VCPP) && _MSC_VER < 1700
+#if defined(AE_VCPP) && (_MSC_VER < 1700 || defined(__cplusplus_cli))
 #pragma warning(pop)
+#ifdef __cplusplus_cli
+#pragma managed(pop)
+#endif
 #endif
