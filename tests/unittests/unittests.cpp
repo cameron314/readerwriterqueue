@@ -551,7 +551,7 @@ public:
         // timed out
 		result = 1;
         SimpleThread reader2(reader_cb);
-        // sleep for 5 seconds
+        // sleep for 1.2 seconds
         std::chrono::milliseconds timeout2(1200);
         std::this_thread::sleep_for(timeout2);
         SimpleThread writer2(writer_cb);
