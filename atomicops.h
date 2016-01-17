@@ -389,11 +389,7 @@ namespace moodycamel
 
 		    bool wait(const unsigned long &ms)
 		    {
-		    	const unsigned long timeout = 0xffffffff;
-                if(ms > 0UL)
-                {
-                    timeout = ms;
-                }
+		    	const unsigned long timeout = (ms > 0UL ? ms : 0xffffffff);
 		        const DWORD rc = WaitForSingleObject(m_hSema, timeout);
                 return (rc != WAIT_TIMEOUT);
 		    }

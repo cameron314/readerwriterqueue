@@ -514,7 +514,7 @@ public:
 			int item = -1;
 			int prevItem = -1;
 			for (int i = 0; i != 1000000; ++i) {
-				if(!q.wait_dequeue(item, 4000UL))
+				if(!q.wait_dequeue(item, 1000UL))
                 {
                     // timed out
                     std::cout << "in reader timed out\n";
@@ -535,8 +535,8 @@ public:
             std::cout << "in writer done\n";
 		};
         SimpleThread reader(reader_cb);
-        // sleep for 3 seconds
-        std::chrono::milliseconds timeout1(3000);
+        // sleep for 0.8 seconds
+        std::chrono::milliseconds timeout1(800);
         std::this_thread::sleep_for(timeout1);
         SimpleThread writer(writer_cb);
 
@@ -552,7 +552,7 @@ public:
 		result = 1;
         SimpleThread reader2(reader_cb);
         // sleep for 5 seconds
-        std::chrono::milliseconds timeout2(5000);
+        std::chrono::milliseconds timeout2(1200);
         std::this_thread::sleep_for(timeout2);
         SimpleThread writer2(writer_cb);
 
