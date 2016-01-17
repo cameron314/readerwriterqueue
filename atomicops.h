@@ -499,6 +499,7 @@ namespace moodycamel
                     return true;
                 }
 
+                // wait with timeout
                 struct timespec ts;
                 if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
                 {
@@ -541,7 +542,7 @@ namespace moodycamel
 		{
 		public:
 			typedef std::make_signed<std::size_t>::type ssize_t;
-			
+
 		private:
 		    weak_atomic<ssize_t> m_count;
 		    Semaphore m_sema;

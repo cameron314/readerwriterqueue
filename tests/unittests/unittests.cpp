@@ -502,7 +502,7 @@ public:
 			ASSERT_OR_FAIL(item == 345);
 			ASSERT_OR_FAIL(!q.peek());
 			ASSERT_OR_FAIL(q.size_approx() == 0);
-			ASSERT_OR_FAIL(!q.wait_dequeue(item, 0UL));
+			ASSERT_OR_FAIL(!q.wait_dequeue(item, 1000UL));
 		}
 
 		weak_atomic<int> result;
