@@ -5,6 +5,9 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <chrono>
+#include <thread>
+#include <iostream>
 
 #include "minitest.h"
 #include "../common/simplethread.h"
@@ -59,6 +62,7 @@ public:
 		REGISTER_TEST(size_approx);
 		REGISTER_TEST(threaded);
 		REGISTER_TEST(blocking);
+		REGISTER_TEST(blocking_timedwait);
 	}
 	
 	bool create_empty_queue()
@@ -427,24 +431,24 @@ public:
 		
 		return result.load() == 1 ? true : false;
 	}
-	
+
 	bool blocking()
 	{
 		{
 			BlockingReaderWriterQueue<int> q;
 			int item;
-			
+
 			q.enqueue(123);
 			ASSERT_OR_FAIL(q.try_dequeue(item));
 			ASSERT_OR_FAIL(item == 123);
 			ASSERT_OR_FAIL(q.size_approx() == 0);
-			
+
 			q.enqueue(234);
 			ASSERT_OR_FAIL(q.size_approx() == 1);
 			ASSERT_OR_FAIL(*q.peek() == 234);
 			ASSERT_OR_FAIL(*q.peek() == 234);
 			ASSERT_OR_FAIL(q.pop());
-			
+
 			ASSERT_OR_FAIL(q.try_enqueue(345));
 			q.wait_dequeue(item);
 			ASSERT_OR_FAIL(item == 345);
@@ -452,10 +456,10 @@ public:
 			ASSERT_OR_FAIL(q.size_approx() == 0);
 			ASSERT_OR_FAIL(!q.try_dequeue(item));
 		}
-		
+
 		weak_atomic<int> result;
 		result = 1;
-		
+
 		BlockingReaderWriterQueue<int> q(100);
 		SimpleThread reader([&]() {
 			int item = -1;
@@ -473,13 +477,92 @@ public:
 				q.enqueue(i);
 			}
 		});
-		
+
 		writer.join();
 		reader.join();
-		
+
 		ASSERT_OR_FAIL(q.size_approx() == 0);
-		
+
 		return result.load() ? 1 : 0;
+	}
+
+	bool blocking_timedwait()
+	{
+		{
+			BlockingReaderWriterQueue<int> q;
+			int item;
+
+			q.enqueue(123);
+			ASSERT_OR_FAIL(q.wait_dequeue(item, 0UL));
+			ASSERT_OR_FAIL(item == 123);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+
+			ASSERT_OR_FAIL(q.try_enqueue(345));
+			ASSERT_OR_FAIL(q.wait_dequeue(item, 0UL));
+			ASSERT_OR_FAIL(item == 345);
+			ASSERT_OR_FAIL(!q.peek());
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(!q.wait_dequeue(item, 0UL));
+		}
+
+		weak_atomic<int> result;
+		result = 1;
+
+		BlockingReaderWriterQueue<int> q(100);
+        auto reader_cb = [&]() {
+            std::cout << "in reader\n";
+			int item = -1;
+			int prevItem = -1;
+			for (int i = 0; i != 1000000; ++i) {
+				if(!q.wait_dequeue(item, 4000UL))
+                {
+                    // timed out
+                    std::cout << "in reader timed out\n";
+                    return;
+                }
+				if (item <= prevItem) {
+					result = 0;
+				}
+				prevItem = item;
+			}
+            std::cout << "in reader done\n";
+		};
+        auto writer_cb = [&]() {
+            std::cout << "in writer\n";
+			for (int i = 0; i != 1000000; ++i) {
+				q.enqueue(i);
+			}
+            std::cout << "in writer done\n";
+		};
+        SimpleThread reader(reader_cb);
+        // sleep for 3 seconds
+        std::chrono::milliseconds timeout1(3000);
+        std::this_thread::sleep_for(timeout1);
+        SimpleThread writer(writer_cb);
+
+		writer.join();
+		reader.join();
+
+        std::cout << "q.size_approx():" << q.size_approx() << "\n";
+
+		ASSERT_OR_FAIL(q.size_approx() == 0);
+		ASSERT_OR_FAIL(result.load() ? 1 : 0 == 0);
+
+        // timed out
+		result = 1;
+        SimpleThread reader2(reader_cb);
+        // sleep for 5 seconds
+        std::chrono::milliseconds timeout2(5000);
+        std::this_thread::sleep_for(timeout2);
+        SimpleThread writer2(writer_cb);
+
+		writer2.join();
+		reader2.join();
+
+        std::cout << "q.size_approx():" << q.size_approx() << "\n";
+		ASSERT_OR_FAIL(q.size_approx() == 999999);
+
+		return result.load();
 	}
 };
 

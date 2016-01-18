@@ -700,18 +700,26 @@ public:
 		}
 		return false;
 	}
-	
-	
-	// Attempts to dequeue an element; if the queue is empty,
-	// waits until an element is available, then dequeues it.
+
+
+	/** Attempts to dequeue an element; if the queue is empty,
+	 * waits until an element is available, then dequeues it.
+     * @param result output result
+     * @param ms - time out in milliseconds. if is 0UL, the will wait infinitely. Default is 0UL.
+     * @return FALSE if time-out, TRUE if success
+     */
 	template<typename U>
-	void wait_dequeue(U& result)
+	bool wait_dequeue(U& result, const unsigned long ms = 0UL )
 	{
-		sema.wait();
+		if (!sema.wait(ms))
+        {
+            return false;
+        }
 		bool success = inner.try_dequeue(result);
 		AE_UNUSED(result);
 		assert(success);
 		AE_UNUSED(success);
+        return true;
 	}
 
 

@@ -13,7 +13,7 @@
 
 #include <cassert>
 #include <type_traits>
-
+#include <iostream>
 
 // Platform detection
 #if defined(__INTEL_COMPILER)
@@ -335,6 +335,7 @@ extern "C" {
 }
 #elif defined(__MACH__)
 #include <mach/mach.h>
+#include <mach/mach_time.h>
 #elif defined(__unix__)
 #include <semaphore.h>
 #endif
@@ -369,7 +370,7 @@ namespace moodycamel
 		{
 		private:
 		    void* m_hSema;
-		    
+
 		    Semaphore(const Semaphore& other);
 		    Semaphore& operator=(const Semaphore& other);
 
@@ -386,10 +387,15 @@ namespace moodycamel
 		        CloseHandle(m_hSema);
 		    }
 
-		    void wait()
+		    bool wait(const unsigned long &ms)
 		    {
-		    	const unsigned long infinite = 0xffffffff;
-		        WaitForSingleObject(m_hSema, infinite);
+		    	const unsigned long timeout = 0xffffffff;
+                if(ms > 0UL)
+                {
+                    timeout = ms;
+                }
+		        const DWORD rc = WaitForSingleObject(m_hSema, timeout);
+                return (rc != WAIT_TIMEOUT);
 		    }
 
 		    void signal(int count = 1)
@@ -422,9 +428,23 @@ namespace moodycamel
 		        semaphore_destroy(mach_task_self(), m_sema);
 		    }
 
-		    void wait()
+		    bool wait(const unsigned long &ms)
 		    {
-		        semaphore_wait(m_sema);
+                if(ms == 0UL)
+                {
+		            semaphore_wait(m_sema);
+                    return true;
+                }
+
+		        kern_return_t rc;
+                mach_timespec_t ts;
+                ts.tv_sec = ms / 1000;
+                ts.tv_nsec = (ms % 1000) * 1000000;
+
+                // added in OSX 10.10: https://developer.apple.com/library/prerelease/mac/documentation/General/Reference/APIDiffsMacOSX10_10SeedDiff/modules/Darwin.html
+                rc = semaphore_timedwait(m_sema, ts);
+
+                return (rc != KERN_OPERATION_TIMED_OUT);
 		    }
 
 		    void signal()
@@ -464,15 +484,37 @@ namespace moodycamel
 		        sem_destroy(&m_sema);
 		    }
 
-		    void wait()
+		    bool wait(const unsigned long &ms)
 		    {
 		        // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
 		        int rc;
+                if(ms == 0UL)
+                {
+                    do
+                    {
+                        rc = sem_wait(&m_sema);
+                    }
+                    while (rc == -1 && errno == EINTR);
+
+                    return true;
+                }
+
+                struct timespec ts;
+                if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
+                {
+                    return true;
+                }
+                ts.tv_nsec += (ms % 1000) * 1000000000;
+                ts.tv_sec += ms / 1000 + ts.tv_nsec / 1000000000;
+                ts.tv_nsec %= 1000000000;
+
 		        do
 		        {
-		            rc = sem_wait(&m_sema);
+		            rc = sem_timedwait(&m_sema, &ts);
 		        }
 		        while (rc == -1 && errno == EINTR);
+
+                return !(rc == -1 && errno == ETIMEDOUT);
 		    }
 
 		    void signal()
@@ -504,7 +546,7 @@ namespace moodycamel
 		    weak_atomic<ssize_t> m_count;
 		    Semaphore m_sema;
 
-		    void waitWithPartialSpinning()
+		    bool waitWithPartialSpinning(const unsigned long &ms)
 		    {
 		        ssize_t oldCount;
 		        // Is there a better way to set the initial spin count?
@@ -516,15 +558,17 @@ namespace moodycamel
 		            if (m_count.load() > 0)
 		            {
 		                m_count.fetch_add_acquire(-1);
-		                return;
+		                return true;
 		            }
 		            compiler_fence(memory_order_acquire);     // Prevent the compiler from collapsing the loop.
 		        }
 		        oldCount = m_count.fetch_add_acquire(-1);
 		        if (oldCount <= 0)
 		        {
-		            m_sema.wait();
+		            return m_sema.wait(ms);
 		        }
+
+                return true;
 		    }
 
 		public:
@@ -543,10 +587,11 @@ namespace moodycamel
 		        return false;
 		    }
 
-		    void wait()
+		    bool wait(const unsigned long ms = 0UL)
 		    {
 		        if (!tryWait())
-		            waitWithPartialSpinning();
+		            return waitWithPartialSpinning(ms);
+                return true;
 		    }
 
 		    void signal(ssize_t count = 1)
@@ -559,7 +604,7 @@ namespace moodycamel
 		            m_sema.signal(1);
 		        }
 		    }
-		    
+
 		    ssize_t availableApprox() const
 		    {
 		    	ssize_t count = m_count.load();
