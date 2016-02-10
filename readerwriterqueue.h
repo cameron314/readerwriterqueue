@@ -1,4 +1,4 @@
-// ©2013-2015 Cameron Desrochers.
+// ©2013-2016 Cameron Desrochers.
 // Distributed under the simplified BSD license (see the license file that
 // should have come with this header).
 
@@ -10,7 +10,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <cstdint>
-#include <cstdlib>		// For malloc/free & size_t
+#include <cstdlib>		// For malloc/free/abort & size_t
 
 
 // A lock-free queue for a single-consumer, single-producer architecture.
@@ -26,7 +26,15 @@
 // one role, is not safe unless properly synchronized.
 // Using the queue exclusively from one thread is fine, though a bit silly.
 
-#define CACHE_LINE_SIZE 64
+#ifndef MOODYCAMEL_CACHE_LINE_SIZE
+#define MOODYCAMEL_CACHE_LINE_SIZE 64
+#endif
+
+#ifndef MOODYCAMEL_EXCEPTIONS_ENABLED
+#if (defined(_MSC_VER) && defined(_CPPUNWIND)) || (defined(__GNUC__) && defined(__EXCEPTIONS)) || (!defined(_MSC_VER) && !defined(__GNUC__))
+#define MOODYCAMEL_EXCEPTIONS_ENABLED
+#endif
+#endif
 
 #ifdef AE_VCPP
 #pragma warning(push)
@@ -90,7 +98,11 @@ public:
 			for (size_t i = 0; i != initialBlockCount; ++i) {
 				auto block = make_block(largestBlockSize);
 				if (block == nullptr) {
+#ifdef MOODYCAMEL_EXCEPTIONS_ENABLED
 					throw std::bad_alloc();
+#else
+					abort();
+#endif
 				}
 				if (firstBlock == nullptr) {
 					firstBlock = block;
@@ -105,7 +117,11 @@ public:
 		else {
 			firstBlock = make_block(largestBlockSize);
 			if (firstBlock == nullptr) {
+#ifdef MOODYCAMEL_EXCEPTIONS_ENABLED
 				throw std::bad_alloc();
+#else
+				abort();
+#endif
 			}
 			firstBlock->next = firstBlock;
 		}
@@ -543,11 +559,7 @@ private:
 		ReentrantGuard(bool& _inSection)
 			: inSection(_inSection)
 		{
-			assert(!inSection);
-			if (inSection) {
-				throw std::runtime_error("ReaderWriterQueue does not support enqueuing or dequeuing elements from other elements' ctors and dtors");
-			}
-
+			assert(!inSection && "ReaderWriterQueue does not support enqueuing or dequeuing elements from other elements' ctors and dtors");
 			inSection = true;
 		}
 
@@ -567,11 +579,11 @@ private:
 		weak_atomic<size_t> front;	// (Atomic) Elements are read from here
 		size_t localTail;			// An uncontended shadow copy of tail, owned by the consumer
 		
-		char cachelineFiller0[CACHE_LINE_SIZE - sizeof(weak_atomic<size_t>) - sizeof(size_t)];
+		char cachelineFiller0[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<size_t>) - sizeof(size_t)];
 		weak_atomic<size_t> tail;	// (Atomic) Elements are enqueued here
 		size_t localFront;
 		
-		char cachelineFiller1[CACHE_LINE_SIZE - sizeof(weak_atomic<size_t>) - sizeof(size_t)];	// next isn't very contended, but we don't want it on the same cache line as tail (which is)
+		char cachelineFiller1[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<size_t>) - sizeof(size_t)];	// next isn't very contended, but we don't want it on the same cache line as tail (which is)
 		weak_atomic<Block*> next;	// (Atomic)
 		
 		char* data;		// Contents (on heap) are aligned to T's alignment
@@ -612,7 +624,7 @@ private:
 private:
 	weak_atomic<Block*> frontBlock;		// (Atomic) Elements are enqueued to this block
 	
-	char cachelineFiller[CACHE_LINE_SIZE - sizeof(weak_atomic<Block*>)];
+	char cachelineFiller[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<Block*>)];
 	weak_atomic<Block*> tailBlock;		// (Atomic) Elements are dequeued from this block
 
 	size_t largestBlockSize;
