@@ -13,6 +13,7 @@
 
 #include <cassert>
 #include <type_traits>
+#include <cerrno>
 
 
 // Platform detection
