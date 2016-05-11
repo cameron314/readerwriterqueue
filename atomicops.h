@@ -603,7 +603,7 @@ namespace moodycamel
 						return false;    // successfully restored things to the way they were
 					// Oh, the producer thread just signaled the semaphore after all. Try again:
 					oldCount = m_count.fetch_add_acquire(-1);
-					if (oldCount >= 0 && m_sema.try_wait())
+					if (oldCount > 0 && m_sema.try_wait())
 						return true;
 				}
 		    }
