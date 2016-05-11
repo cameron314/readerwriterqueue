@@ -55,7 +55,8 @@ front = q.peek();
 assert(front == nullptr);           // Returns nullptr if the queue was empty
 ```
 
-The blocking version has the exact same API, with the addition of a `wait_dequeue` method:
+The blocking version has the exact same API, with the addition of `wait_dequeue` and
+`wait_dequeue_timed` methods:
 
 ```cpp
 BlockingReaderWriterQueue<int> q;
@@ -63,12 +64,18 @@ BlockingReaderWriterQueue<int> q;
 std::thread reader([&]() {
     int item;
     for (int i = 0; i != 100; ++i) {
+        // Fully-blocking:
         q.wait_dequeue(item);
+
+        // Blocking with timeout
+        if (q.wait_dequeue_timed(item, std::chrono::milliseconds(5)))
+            ++i;
     }
 });
 std::thread writer([&]() {
     for (int i = 0; i != 100; ++i) {
         q.enqueue(i);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 });
 writer.join();

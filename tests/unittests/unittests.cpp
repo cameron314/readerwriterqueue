@@ -456,30 +456,66 @@ public:
 		weak_atomic<int> result;
 		result = 1;
 		
-		BlockingReaderWriterQueue<int> q(100);
-		SimpleThread reader([&]() {
-			int item = -1;
-			int prevItem = -1;
-			for (int i = 0; i != 1000000; ++i) {
-				q.wait_dequeue(item);
-				if (item <= prevItem) {
-					result = 0;
+		{
+			BlockingReaderWriterQueue<int> q(100);
+			SimpleThread reader([&]() {
+				int item = -1;
+				int prevItem = -1;
+				for (int i = 0; i != 1000000; ++i) {
+					q.wait_dequeue(item);
+					if (item <= prevItem) {
+						result = 0;
+					}
+					prevItem = item;
 				}
-				prevItem = item;
-			}
-		});
-		SimpleThread writer([&]() {
-			for (int i = 0; i != 1000000; ++i) {
-				q.enqueue(i);
-			}
-		});
+			});
+			SimpleThread writer([&]() {
+				for (int i = 0; i != 1000000; ++i) {
+					q.enqueue(i);
+				}
+			});
+			
+			writer.join();
+			reader.join();
+			
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(result.load());
+		}
+
+		{
+			BlockingReaderWriterQueue<int> q(100);
+			SimpleThread reader([&]() {
+				int item = -1;
+				int prevItem = -1;
+				for (int i = 0; i != 1000000; ++i) {
+					if (!q.wait_dequeue_timed(item, 1000)) {
+						--i;
+						continue;
+					}
+					if (item <= prevItem) {
+						result = 0;
+					}
+					prevItem = item;
+				}
+			});
+			SimpleThread writer([&]() {
+				for (int i = 0; i != 1000000; ++i) {
+					q.enqueue(i);
+					for (volatile int x = 0; x != 100; ++x);
+				}
+			});
+			
+			writer.join();
+			reader.join();
+
+			int item;
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 0));
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 1));
+			ASSERT_OR_FAIL(result.load());
+		}
 		
-		writer.join();
-		reader.join();
-		
-		ASSERT_OR_FAIL(q.size_approx() == 0);
-		
-		return result.load() ? 1 : 0;
+		return true;
 	}
 };
 

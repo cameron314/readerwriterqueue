@@ -11,6 +11,9 @@
 #include <stdexcept>
 #include <cstdint>
 #include <cstdlib>		// For malloc/free/abort & size_t
+#if __cplusplus > 199711L
+#include <chrono>
+#endif
 
 
 // A lock-free queue for a single-consumer, single-producer architecture.
@@ -725,6 +728,41 @@ public:
 		assert(success);
 		AE_UNUSED(success);
 	}
+
+
+	// Attempts to dequeue an element; if the queue is empty,
+	// waits until an element is available up to the specified timeout,
+	// then dequeues it and returns true, or returns false if the timeout
+	// expires before an element can be dequeued.
+	// Using a negative timeout indicates an indefinite timeout,
+	// and is thus functionally equivalent to calling wait_dequeue.
+	template<typename U>
+	bool wait_dequeue_timed(U& result, std::int64_t timeout_usecs)
+	{
+		if (!sema.wait(timeout_usecs)) {
+			return false;
+		}
+		bool success = inner.try_dequeue(result);
+		AE_UNUSED(result);
+		assert(success);
+		AE_UNUSED(success);
+		return true;
+	}
+
+
+#if __cplusplus > 199711L
+	// Attempts to dequeue an element; if the queue is empty,
+	// waits until an element is available up to the specified timeout,
+	// then dequeues it and returns true, or returns false if the timeout
+	// expires before an element can be dequeued.
+	// Using a negative timeout indicates an indefinite timeout,
+	// and is thus functionally equivalent to calling wait_dequeue.
+	template<typename U, typename Rep, typename Period>
+	inline bool wait_dequeue_timed(U& result, std::chrono::duration<Rep, Period> const& timeout)
+	{
+        return wait_dequeue_timed(result, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
+	}
+#endif
 
 
 	// Returns a pointer to the front element in the queue (the one that
