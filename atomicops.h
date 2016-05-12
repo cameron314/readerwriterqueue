@@ -14,6 +14,7 @@
 #include <cassert>
 #include <type_traits>
 #include <cerrno>
+#include <cstdint>
 
 
 // Platform detection
