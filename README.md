@@ -5,7 +5,7 @@ This mini-repository has my very own implementation of a lock-free queue (that I
 It only supports a two-thread use case (one consuming, and one producing). The threads can't switch roles, though
 you could use this queue completely from a single thread if you wish (but that would sort of defeat the purpose!).
 
-Note: If you need a general purpse multi-producer, multi-consumer lock free queue, I have [one of those too][mpmc].
+Note: If you need a general-purpose multi-producer, multi-consumer lock free queue, I have [one of those too][mpmc].
 
 
 ## Features
