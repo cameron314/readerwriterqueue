@@ -42,11 +42,13 @@ int main(int argc, char** argv)
 			});
 	
 			SimpleThread reader([&]() {
+				bool canLog = true;
 				unsigned long long element;
 				for (unsigned long long j = 0; j < 1024ULL * 1024ULL * 32ULL;) {
-					if ((j & (1024 * 1024 * 16 - 1)) == 0) {
+					if (canLog && (j & (1024 * 1024 * 16 - 1)) == 0) {
 						log << "  ... iteration " << j << std::endl;
 						std::printf("  ... iteration %llu\n", j);
+						canLog = false;
 					}
 					unpredictableDelay();
 					if (q.try_dequeue(element)) {
@@ -55,6 +57,7 @@ int main(int argc, char** argv)
 							std::printf("  ERROR DETECTED: Expected to read %llu but found %llu", j, element);
 						}
 						++j;
+						canLog = true;
 					}
 				}
 				if (q.try_dequeue(element)) {

@@ -27,3 +27,8 @@ benchmarks/msvc12/Debug/
 benchmarks/msvc12/Release/
 benchmarks/msvc12/obj/
 test/
+# Linux binaries
+benchmarks/benchmarks
+tests/stabtest/stabtest
+tests/unittests/unittests
+

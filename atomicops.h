@@ -15,7 +15,7 @@
 #include <type_traits>
 #include <cerrno>
 #include <cstdint>
-
+#include <ctime>
 
 // Platform detection
 #if defined(__INTEL_COMPILER)
