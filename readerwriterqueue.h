@@ -9,6 +9,7 @@
 #include <utility>
 #include <cassert>
 #include <stdexcept>
+#include <new>
 #include <cstdint>
 #include <cstdlib>		// For malloc/free/abort & size_t
 #if __cplusplus > 199711L
