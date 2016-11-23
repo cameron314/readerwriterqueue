@@ -12,7 +12,7 @@
 #include <new>
 #include <cstdint>
 #include <cstdlib>		// For malloc/free/abort & size_t
-#if __cplusplus > 199711L
+#if __cplusplus > 199711L || _MSC_VER >= 1700 // C++11 or VS2012
 #include <chrono>
 #endif
 
@@ -751,7 +751,7 @@ public:
 	}
 
 
-#if __cplusplus > 199711L
+#if __cplusplus > 199711L || _MSC_VER >= 1700
 	// Attempts to dequeue an element; if the queue is empty,
 	// waits until an element is available up to the specified timeout,
 	// then dequeues it and returns true, or returns false if the timeout
