@@ -3,7 +3,7 @@ import os
 
 class ReaderWriterQueue(ConanFile):
     name = "readerwriterqueue"
-    url = "https::/github.com/Manu343726/readerwiterqueue"
+    url = 'https://github.com/Manu343726/readerwriterqueue'
     license = "MIT"
     version = "1.0.0"
     exports = "*.h"
