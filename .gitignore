@@ -32,3 +32,6 @@ benchmarks/benchmarks
 tests/stabtest/stabtest
 tests/unittests/unittests
 
+# conan.io stuff
+*.pyc
+build/
