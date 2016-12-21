@@ -4,7 +4,7 @@ import os
 class ReaderWriterQueue(ConanFile):
     name = "readerwriterqueue"
     url = 'https://github.com/Manu343726/readerwriterqueue'
-    license = "MIT"
+    license = "Simplified BSD with part of blocking implementation under ZLIB"
     version = "1.0.0"
     exports = "*.h"
     build_policy = "missing"
