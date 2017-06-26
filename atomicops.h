@@ -229,6 +229,7 @@ class weak_atomic
 public:
 	weak_atomic() { }
 #ifdef AE_VCPP
+#pragma warning(push)
 #pragma warning(disable: 4100)		// Get rid of (erroneous) 'unreferenced formal parameter' warning
 #endif
 	template<typename U> weak_atomic(U&& x) : value(std::forward<U>(x)) {  }
@@ -239,7 +240,7 @@ public:
 	weak_atomic(weak_atomic const& other) : value(other.value) {  }
 	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) {  }
 #ifdef AE_VCPP
-#pragma warning(default: 4100)
+#pragma warning(pop)
 #endif
 
 	AE_FORCEINLINE operator T() const { return load(); }
