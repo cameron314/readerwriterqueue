@@ -59,6 +59,7 @@ public:
 		REGISTER_TEST(size_approx);
 		REGISTER_TEST(threaded);
 		REGISTER_TEST(blocking);
+		REGISTER_TEST(vector);
 	}
 	
 	bool create_empty_queue()
@@ -515,6 +516,26 @@ public:
 			ASSERT_OR_FAIL(result.load());
 		}
 		
+		return true;
+	}
+	
+	bool vector()
+	{
+		std::vector<ReaderWriterQueue<int>> queues;
+		queues.push_back(ReaderWriterQueue<int>());
+		queues.emplace_back();
+
+		queues[0].enqueue(1);
+		queues[1].enqueue(2);
+		std::swap(queues[0], queues[1]);
+
+		int item;
+		ASSERT_OR_FAIL(queues[0].try_dequeue(item));
+		ASSERT_OR_FAIL(item == 2);
+
+		ASSERT_OR_FAIL(queues[1].try_dequeue(item));
+		ASSERT_OR_FAIL(item == 1);
+
 		return true;
 	}
 };

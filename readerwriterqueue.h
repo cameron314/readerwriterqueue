@@ -137,6 +137,45 @@ public:
 	}
 
 	// Note: The queue should not be accessed concurrently while it's
+	// being moved. It's up to the user to synchronize this.
+	ReaderWriterQueue(ReaderWriterQueue&& other)
+		: frontBlock(other.frontBlock.load()),
+		tailBlock(other.tailBlock.load()),
+		largestBlockSize(other.largestBlockSize)
+#ifndef NDEBUG
+		,enqueuing(false)
+		,dequeuing(false)
+#endif
+	{
+		other.largestBlockSize = 32;
+		Block* b = other.make_block(other.largestBlockSize);
+		if (b == nullptr) {
+#ifdef MOODYCAMEL_EXCEPTIONS_ENABLED
+			throw std::bad_alloc();
+#else
+			abort();
+#endif
+		}
+		b->next = b;
+		other.frontBlock = b;
+		other.tailBlock = b;
+	}
+
+	// Note: The queue should not be accessed concurrently while it's
+	// being moved. It's up to the user to synchronize this.
+	ReaderWriterQueue& operator=(ReaderWriterQueue&& other)
+	{
+		Block* b = frontBlock.load();
+		frontBlock = other.frontBlock.load();
+		other.frontBlock = b;
+		b = tailBlock.load();
+		tailBlock = other.tailBlock.load();
+		other.tailBlock = b;
+		std::swap(largestBlockSize, other.largestBlockSize);
+		return *this;
+	}
+
+	// Note: The queue should not be accessed concurrently while it's
 	// being deleted. It's up to the user to synchronize this.
 	~ReaderWriterQueue()
 	{
