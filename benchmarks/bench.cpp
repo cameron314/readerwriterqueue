@@ -8,6 +8,10 @@
 #define NO_FOLLY_SUPPORT
 #endif
 
+#if !defined(__amd64__) && !defined(_M_X64) && !defined(__x86_64__) && !defined(_M_IX86) && !defined(__i386__)
+#define NO_SPSC_SUPPORT  // SPSC implementation is for x86 only
+#endif
+
 #include "ext/1024cores/spscqueue.h"            // Dmitry's (on Intel site)
 #ifndef NO_FOLLY_SUPPORT
 #include "ext/folly/ProducerConsumerQueue.h"    // Facebook's folly (GitHub)
@@ -90,9 +94,16 @@ int main(int argc, char** argv)
 		for (int i = 0; i < TEST_COUNT; ++i) {
 			rwqResults[benchmark][i] = runBenchmark<ReaderWriterQueue<int>>((BenchmarkType)benchmark, randSeeds[benchmark], rwqOps[benchmark][i]);
 		}
+#ifndef NO_SPSC_SUPPORT
 		for (int i = 0; i < TEST_COUNT; ++i) {
 			spscResults[benchmark][i] = runBenchmark<spsc_queue<int>>((BenchmarkType)benchmark, randSeeds[benchmark], spscOps[benchmark][i]);
 		}
+#else
+		for (int i = 0; i < TEST_COUNT; ++i) {
+			spscResults[benchmark][i] = 0;
+			spscOps[benchmark][i] = 0;
+		}
+#endif
 #ifndef NO_FOLLY_SUPPORT
 		for (int i = 0; i < TEST_COUNT; ++i) {
 			follyResults[benchmark][i] = runBenchmark<ProducerConsumerQueue<int>>((BenchmarkType)benchmark, randSeeds[benchmark], follyOps[benchmark][i]);
@@ -115,6 +126,9 @@ int main(int argc, char** argv)
 	// Display results
 	int max = std::max(2, (int)(TEST_COUNT * FASTEST_PERCENT_CONSIDERED / 100));
 	assert(max > 0);
+#ifdef NO_SPSC_SUPPORT
+	std::cout << "Note: SPSC queue not supported on this platform, discount its timings" << std::endl;
+#endif
 #ifdef NO_FOLLY_SUPPORT
 	std::cout << "Note: Folly queue not supported by this compiler, discount its timings" << std::endl;
 #endif
