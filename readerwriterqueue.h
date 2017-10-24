@@ -73,6 +73,8 @@ class ReaderWriterQueue
 	// equal size to the last block) is added. Blocks are never removed.
 
 public:
+    using value_type = T;
+
 	// Constructs a queue that can hold maxSize elements without further
 	// allocations. If more than MAX_BLOCK_SIZE elements are requested,
 	// then several blocks of MAX_BLOCK_SIZE each are reserved (including
@@ -220,6 +222,13 @@ public:
 		return inner_enqueue<CannotAlloc>(std::forward<T>(element));
 	}
 
+	// Like try_enqueue() but emplace semantics (ie construct-in-place)
+	template<typename... Args>
+	AE_FORCEINLINE bool try_emplace(Args&&... args)
+	{
+		return inner_enqueue<CannotAlloc>(std::forward<Args>(args)...);
+	}
+
 
 	// Enqueues a copy of element on the queue.
 	// Allocates an additional block of memory if needed.
@@ -235,6 +244,13 @@ public:
 	AE_FORCEINLINE bool enqueue(T&& element)
 	{
 		return inner_enqueue<CanAlloc>(std::forward<T>(element));
+	}
+
+	// Like enqueue() but emplace semantics (ie construct-in-place)
+	template<typename... Args>
+	AE_FORCEINLINE bool emplace(Args&&... args)
+	{
+		return inner_enqueue<CanAlloc>(std::forward<Args>(args)...);
 	}
 
 
@@ -469,8 +485,8 @@ public:
 private:
 	enum AllocationMode { CanAlloc, CannotAlloc };
 
-	template<AllocationMode canAlloc, typename U>
-	bool inner_enqueue(U&& element)
+	template<AllocationMode canAlloc, typename... Args>
+	bool inner_enqueue(Args&&... args)
 	{
 #ifndef NDEBUG
 		ReentrantGuard guard(this->enqueuing);
@@ -492,7 +508,7 @@ private:
 			fence(memory_order_acquire);
 			// This block has room for at least one more element
 			char* location = tailBlock_->data + blockTail * sizeof(T);
-			new (location) T(std::forward<U>(element));
+			new (location) T(std::forward<Args>(args)...);
 
 			fence(memory_order_release);
 			tailBlock_->tail = nextBlockTail;
@@ -504,7 +520,7 @@ private:
 				// is because if we did, then dequeue would stay in that block, eventually reading the new values,
 				// instead of advancing to the next full block (whose values were enqueued first and so should be
 				// consumed first).
-				
+
 				fence(memory_order_acquire);		// Ensure we get latest writes if we got the latest frontBlock
 
 				// tailBlock is full, but there's a free block ahead, use it
@@ -519,7 +535,7 @@ private:
 				tailBlockNext->localFront = nextBlockFront;
 
 				char* location = tailBlockNext->data + nextBlockTail * sizeof(T);
-				new (location) T(std::forward<U>(element));
+				new (location) T(std::forward<Args>(args)...);
 
 				tailBlockNext->tail = (nextBlockTail + 1) & tailBlockNext->sizeMask;
 
@@ -536,7 +552,7 @@ private:
 				}
 				largestBlockSize = newBlockSize;
 
-				new (newBlock->data) T(std::forward<U>(element));
+				new (newBlock->data) T(std::forward<Args>(args)...);
 
 				assert(newBlock->front == 0);
 				newBlock->tail = newBlock->localTail = 1;
@@ -549,7 +565,7 @@ private:
 				// advance to the next block until tailBlock is set anyway (because the only
 				// case where it could try to read the next is if it's already at the tailBlock,
 				// and it won't advance past tailBlock in any circumstance).
-				
+
 				fence(memory_order_release);
 				tailBlock = newBlock;
 			}
