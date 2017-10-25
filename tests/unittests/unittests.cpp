@@ -73,9 +73,11 @@ public:
 		REGISTER_TEST(threaded);
 		REGISTER_TEST(blocking);
 		REGISTER_TEST(vector);
+#if MOODYCAMEL_HAS_EMPLACE
 		REGISTER_TEST(emplace);
 		REGISTER_TEST(try_enqueue_bad);
 		REGISTER_TEST(try_emplace);
+#endif
 	}
 	
 	bool create_empty_queue()
@@ -555,6 +557,7 @@ public:
 		return true;
 	}
 
+#if MOODYCAMEL_HAS_EMPLACE
 	bool emplace()
 	{
 		ReaderWriterQueue<Wrapper> q(100);
@@ -603,6 +606,7 @@ public:
 
 		return true;
 	}
+#endif
 };
 
 
