@@ -450,7 +450,7 @@ namespace moodycamel
 			bool timed_wait(std::int64_t timeout_usecs)
 			{
 				mach_timespec_t ts;
-				ts.tv_sec = timeout_usecs / 1000000;
+				ts.tv_sec = static_cast<unsigned int>(timeout_usecs / 1000000);
 				ts.tv_nsec = (timeout_usecs % 1000000) * 1000;
 
 				// added in OSX 10.10: https://developer.apple.com/library/prerelease/mac/documentation/General/Reference/APIDiffsMacOSX10_10SeedDiff/modules/Darwin.html
