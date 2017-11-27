@@ -43,17 +43,18 @@ private:
 };
 
 
-class Wrapper
+#if MOODYCAMEL_HAS_EMPLACE
+class UniquePtrWrapper
 {
 public:
-    Wrapper() = default;
-	Wrapper(std::unique_ptr<int> p) : m_p(std::move(p)) {}
+    UniquePtrWrapper() = default;
+	UniquePtrWrapper(std::unique_ptr<int> p) : m_p(std::move(p)) {}
 	int get_value() const { return *m_p; }
 	std::unique_ptr<int>& get_ptr() { return m_p; }
 private:
 	std::unique_ptr<int> m_p;
 };
-
+#endif
 
 
 class ReaderWriterQueueTests : public TestClass<ReaderWriterQueueTests>
@@ -560,10 +561,10 @@ public:
 #if MOODYCAMEL_HAS_EMPLACE
 	bool emplace()
 	{
-		ReaderWriterQueue<Wrapper> q(100);
+		ReaderWriterQueue<UniquePtrWrapper> q(100);
 		std::unique_ptr<int> p { new int(123) };
 		q.emplace(std::move(p));
-		Wrapper item;
+		UniquePtrWrapper item;
 		ASSERT_OR_FAIL(q.try_dequeue(item));
 		ASSERT_OR_FAIL(item.get_value() == 123);
 		ASSERT_OR_FAIL(q.size_approx() == 0);
@@ -571,9 +572,10 @@ public:
 		return true;
 	}
 
+	// This is what you have to do to try_enqueue() a movable type, and demonstrates why try_emplace() is useful
 	bool try_enqueue_bad()
 	{
-		ReaderWriterQueue<Wrapper> q(0);
+		ReaderWriterQueue<UniquePtrWrapper> q(0);
 		{
 			// A failed try_enqueue() will still delete p
 			std::unique_ptr<int> p { new int(123) };
@@ -584,7 +586,7 @@ public:
 		{
 			// Workaround isn't pretty and potentially expensive - use try_emplace() instead
 			std::unique_ptr<int> p { new int(123) };
-			Wrapper w(std::move(p));
+			UniquePtrWrapper w(std::move(p));
 			q.try_enqueue(std::move(w));
 			p = std::move(w.get_ptr());
 			ASSERT_OR_FAIL(q.size_approx() == 0);
@@ -597,7 +599,7 @@ public:
 
 	bool try_emplace()
 	{
-		ReaderWriterQueue<Wrapper> q(0);
+		ReaderWriterQueue<UniquePtrWrapper> q(0);
 		std::unique_ptr<int> p { new int(123) };
 		q.try_emplace(std::move(p));
 		ASSERT_OR_FAIL(q.size_approx() == 0);

@@ -40,8 +40,10 @@
 #endif
 #endif
 
-#if !defined _MSC_VER || _MSC_VER >= 1800 // variadic templates: either a non-MS compiler or VS >= 2013
+#ifndef MOODYCAMEL_HAS_EMPLACE
+#if !defined(_MSC_VER) || _MSC_VER >= 1800 // variadic templates: either a non-MS compiler or VS >= 2013
 #define MOODYCAMEL_HAS_EMPLACE    1
+#endif
 #endif
 
 #ifdef AE_VCPP
@@ -227,7 +229,7 @@ public:
 	}
 
 #if MOODYCAMEL_HAS_EMPLACE
-	// Like try_enqueue() but emplace semantics (ie construct-in-place)
+	// Like try_enqueue() but with emplace semantics (i.e. construct-in-place).
 	template<typename... Args>
 	AE_FORCEINLINE bool try_emplace(Args&&... args)
 	{
@@ -252,7 +254,7 @@ public:
 	}
 
 #if MOODYCAMEL_HAS_EMPLACE
-	// Like enqueue() but emplace semantics (ie construct-in-place)
+	// Like enqueue() but with emplace semantics (i.e. construct-in-place).
 	template<typename... Args>
 	AE_FORCEINLINE bool emplace(Args&&... args)
 	{
