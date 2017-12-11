@@ -47,7 +47,7 @@ private:
 class UniquePtrWrapper
 {
 public:
-    UniquePtrWrapper() = default;
+	UniquePtrWrapper() = default;
 	UniquePtrWrapper(std::unique_ptr<int> p) : m_p(std::move(p)) {}
 	int get_value() const { return *m_p; }
 	std::unique_ptr<int>& get_ptr() { return m_p; }
@@ -76,8 +76,8 @@ public:
 		REGISTER_TEST(vector);
 #if MOODYCAMEL_HAS_EMPLACE
 		REGISTER_TEST(emplace);
-		REGISTER_TEST(try_enqueue_bad);
-		REGISTER_TEST(try_emplace);
+		REGISTER_TEST(try_enqueue_fail_workaround);
+		REGISTER_TEST(try_emplace_fail);
 #endif
 	}
 	
@@ -573,7 +573,7 @@ public:
 	}
 
 	// This is what you have to do to try_enqueue() a movable type, and demonstrates why try_emplace() is useful
-	bool try_enqueue_bad()
+	bool try_enqueue_fail_workaround()
 	{
 		ReaderWriterQueue<UniquePtrWrapper> q(0);
 		{
@@ -597,7 +597,7 @@ public:
 		return true;
 	}
 
-	bool try_emplace()
+	bool try_emplace_fail()
 	{
 		ReaderWriterQueue<UniquePtrWrapper> q(0);
 		std::unique_ptr<int> p { new int(123) };
