@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <memory>
 
 #include "minitest.h"
 #include "../common/simplethread.h"
@@ -42,6 +43,19 @@ private:
 };
 
 
+#if MOODYCAMEL_HAS_EMPLACE
+class UniquePtrWrapper
+{
+public:
+	UniquePtrWrapper() = default;
+	UniquePtrWrapper(std::unique_ptr<int> p) : m_p(std::move(p)) {}
+	int get_value() const { return *m_p; }
+	std::unique_ptr<int>& get_ptr() { return m_p; }
+private:
+	std::unique_ptr<int> m_p;
+};
+#endif
+
 
 class ReaderWriterQueueTests : public TestClass<ReaderWriterQueueTests>
 {
@@ -60,6 +74,11 @@ public:
 		REGISTER_TEST(threaded);
 		REGISTER_TEST(blocking);
 		REGISTER_TEST(vector);
+#if MOODYCAMEL_HAS_EMPLACE
+		REGISTER_TEST(emplace);
+		REGISTER_TEST(try_enqueue_fail_workaround);
+		REGISTER_TEST(try_emplace_fail);
+#endif
 	}
 	
 	bool create_empty_queue()
@@ -538,6 +557,58 @@ public:
 
 		return true;
 	}
+
+#if MOODYCAMEL_HAS_EMPLACE
+	bool emplace()
+	{
+		ReaderWriterQueue<UniquePtrWrapper> q(100);
+		std::unique_ptr<int> p { new int(123) };
+		q.emplace(std::move(p));
+		UniquePtrWrapper item;
+		ASSERT_OR_FAIL(q.try_dequeue(item));
+		ASSERT_OR_FAIL(item.get_value() == 123);
+		ASSERT_OR_FAIL(q.size_approx() == 0);
+
+		return true;
+	}
+
+	// This is what you have to do to try_enqueue() a movable type, and demonstrates why try_emplace() is useful
+	bool try_enqueue_fail_workaround()
+	{
+		ReaderWriterQueue<UniquePtrWrapper> q(0);
+		{
+			// A failed try_enqueue() will still delete p
+			std::unique_ptr<int> p { new int(123) };
+			q.try_enqueue(std::move(p));
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(p == nullptr);
+		}
+		{
+			// Workaround isn't pretty and potentially expensive - use try_emplace() instead
+			std::unique_ptr<int> p { new int(123) };
+			UniquePtrWrapper w(std::move(p));
+			q.try_enqueue(std::move(w));
+			p = std::move(w.get_ptr());
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(p != nullptr);
+			ASSERT_OR_FAIL(*p == 123);
+		}
+
+		return true;
+	}
+
+	bool try_emplace_fail()
+	{
+		ReaderWriterQueue<UniquePtrWrapper> q(0);
+		std::unique_ptr<int> p { new int(123) };
+		q.try_emplace(std::move(p));
+		ASSERT_OR_FAIL(q.size_approx() == 0);
+		ASSERT_OR_FAIL(p != nullptr);
+		ASSERT_OR_FAIL(*p == 123);
+
+		return true;
+	}
+#endif
 };
 
 

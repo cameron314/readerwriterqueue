@@ -83,7 +83,7 @@ enum memory_order {
 
 }    // end namespace moodycamel
 
-#if (defined(AE_VCPP) && (_MSC_VER < 1700 || defined(__cplusplus_cli))) || defined(AE_ICC)
+#if (defined(AE_VCPP) && (_MSC_VER < 1700 || defined(__cplusplus_cli))) || (defined(AE_ICC) && __INTEL_COMPILER < 1600)
 // VS2010 and ICC13 don't support std::atomic_*_fence, implement our own fences
 
 #include <intrin.h>
