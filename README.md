@@ -17,7 +17,8 @@ Note: If you need a general-purpose multi-producer, multi-consumer lock free que
 - Allocates memory up front, in contiguous blocks
 - Provides a `try_enqueue` method which is guaranteed never to allocate memory (the queue starts with an initial capacity)
 - Also provides an `enqueue` method which can dynamically grow the size of the queue as needed
-- Also provides a blocking version with `wait_dequeue`
+- Also provides `try_emplace`/`emplace` convenience methods
+- Has a blocking version with `wait_dequeue`
 - Completely "wait-free" (no compare-and-swap loop). Enqueue and dequeue are always O(1) (not counting memory allocation)
 - On x86, the memory barriers compile down to no-ops, meaning enqueue and dequeue are just a simple series of loads and stores (and branches)
 
