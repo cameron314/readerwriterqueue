@@ -540,21 +540,39 @@ public:
 	
 	bool vector()
 	{
-		std::vector<ReaderWriterQueue<int>> queues;
-		queues.push_back(ReaderWriterQueue<int>());
-		queues.emplace_back();
+		{
+			std::vector<ReaderWriterQueue<int>> queues;
+			queues.push_back(ReaderWriterQueue<int>());
+			queues.emplace_back();
 
-		queues[0].enqueue(1);
-		queues[1].enqueue(2);
-		std::swap(queues[0], queues[1]);
+			queues[0].enqueue(1);
+			queues[1].enqueue(2);
+			std::swap(queues[0], queues[1]);
 
-		int item;
-		ASSERT_OR_FAIL(queues[0].try_dequeue(item));
-		ASSERT_OR_FAIL(item == 2);
+			int item;
+			ASSERT_OR_FAIL(queues[0].try_dequeue(item));
+			ASSERT_OR_FAIL(item == 2);
 
-		ASSERT_OR_FAIL(queues[1].try_dequeue(item));
-		ASSERT_OR_FAIL(item == 1);
+			ASSERT_OR_FAIL(queues[1].try_dequeue(item));
+			ASSERT_OR_FAIL(item == 1);
+		}
+		
+		{
+			std::vector<BlockingReaderWriterQueue<int>> queues;
+			queues.push_back(BlockingReaderWriterQueue<int>());
+			queues.emplace_back();
 
+			queues[0].enqueue(1);
+			queues[1].enqueue(2);
+			std::swap(queues[0], queues[1]);
+
+			int item;
+			ASSERT_OR_FAIL(queues[0].try_dequeue(item));
+			ASSERT_OR_FAIL(item == 2);
+
+			queues[1].wait_dequeue(item);
+			ASSERT_OR_FAIL(item == 1);
+		}
 		return true;
 	}
 

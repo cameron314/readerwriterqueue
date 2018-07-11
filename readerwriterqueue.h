@@ -12,6 +12,7 @@
 #include <new>
 #include <cstdint>
 #include <cstdlib>		// For malloc/free/abort & size_t
+#include <memory>
 #if __cplusplus > 199711L || _MSC_VER >= 1700 // C++11 or VS2012
 #include <chrono>
 #endif
@@ -727,17 +728,28 @@ private:
 	
 public:
 	explicit BlockingReaderWriterQueue(size_t maxSize = 15)
-		: inner(maxSize)
+		: inner(maxSize), sema(new spsc_sema::LightweightSemaphore())
 	{ }
 
-	
+	BlockingReaderWriterQueue(BlockingReaderWriterQueue&& other)
+		: inner(std::move(other.inner)), sema(std::move(other.sema))
+	{ }
+
+	BlockingReaderWriterQueue& operator=(BlockingReaderWriterQueue&& other)
+	{
+		std::swap(sema, other.sema);
+		std::swap(inner, other.inner);
+		return *this;
+	}
+
+
 	// Enqueues a copy of element if there is room in the queue.
 	// Returns true if the element was enqueued, false otherwise.
 	// Does not allocate memory.
 	AE_FORCEINLINE bool try_enqueue(T const& element)
 	{
 		if (inner.try_enqueue(element)) {
-			sema.signal();
+			sema->signal();
 			return true;
 		}
 		return false;
@@ -749,7 +761,7 @@ public:
 	AE_FORCEINLINE bool try_enqueue(T&& element)
 	{
 		if (inner.try_enqueue(std::forward<T>(element))) {
-			sema.signal();
+			sema->signal();
 			return true;
 		}
 		return false;
@@ -762,7 +774,7 @@ public:
 	AE_FORCEINLINE bool enqueue(T const& element)
 	{
 		if (inner.enqueue(element)) {
-			sema.signal();
+			sema->signal();
 			return true;
 		}
 		return false;
@@ -774,7 +786,7 @@ public:
 	AE_FORCEINLINE bool enqueue(T&& element)
 	{
 		if (inner.enqueue(std::forward<T>(element))) {
-			sema.signal();
+			sema->signal();
 			return true;
 		}
 		return false;
@@ -787,7 +799,7 @@ public:
 	template<typename U>
 	bool try_dequeue(U& result)
 	{
-		if (sema.tryWait()) {
+		if (sema->tryWait()) {
 			bool success = inner.try_dequeue(result);
 			assert(success);
 			AE_UNUSED(success);
@@ -802,7 +814,7 @@ public:
 	template<typename U>
 	void wait_dequeue(U& result)
 	{
-		sema.wait();
+		sema->wait();
 		bool success = inner.try_dequeue(result);
 		AE_UNUSED(result);
 		assert(success);
@@ -819,7 +831,7 @@ public:
 	template<typename U>
 	bool wait_dequeue_timed(U& result, std::int64_t timeout_usecs)
 	{
-		if (!sema.wait(timeout_usecs)) {
+		if (!sema->wait(timeout_usecs)) {
 			return false;
 		}
 		bool success = inner.try_dequeue(result);
@@ -860,7 +872,7 @@ public:
 	// `pop` was called.
 	AE_FORCEINLINE bool pop()
 	{
-		if (sema.tryWait()) {
+		if (sema->tryWait()) {
 			bool result = inner.pop();
 			assert(result);
 			AE_UNUSED(result);
@@ -873,18 +885,18 @@ public:
 	// Safe to call from both the producer and consumer threads.
 	AE_FORCEINLINE size_t size_approx() const
 	{
-		return sema.availableApprox();
+		return sema->availableApprox();
 	}
 
 
 private:
 	// Disable copying & assignment
-	BlockingReaderWriterQueue(ReaderWriterQueue const&) {  }
-	BlockingReaderWriterQueue& operator=(ReaderWriterQueue const&) {  }
+	BlockingReaderWriterQueue(BlockingReaderWriterQueue const&) {  }
+	BlockingReaderWriterQueue& operator=(BlockingReaderWriterQueue const&) {  }
 	
 private:
 	ReaderWriterQueue inner;
-	spsc_sema::LightweightSemaphore sema;
+	std::unique_ptr<spsc_sema::LightweightSemaphore> sema;
 };
 
 }    // end namespace moodycamel
