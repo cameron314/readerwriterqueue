@@ -237,8 +237,8 @@ public:
 	// Work around bug with universal reference/nullptr combination that only appears when /clr is on
 	weak_atomic(nullptr_t) : value(nullptr) {  }
 #endif
-	weak_atomic(weak_atomic const& other) : value(other.value) {  }
-	weak_atomic(weak_atomic&& other) : value(std::move(other.value)) {  }
+	weak_atomic(weak_atomic const& other) : value(other.load()) {  }
+	weak_atomic(weak_atomic&& other) : value(std::move(other.load())) {  }
 #ifdef AE_VCPP
 #pragma warning(pop)
 #endif
