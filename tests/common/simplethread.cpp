@@ -34,7 +34,6 @@ void SimpleThread::join()
 {
 	if (thread != nullptr && thread->handle != NULL) {
 		WaitForSingleObject(thread->handle, INFINITE);
-		CloseHandle(thread->handle);
 		thread->handle = NULL;
 	}
 }
