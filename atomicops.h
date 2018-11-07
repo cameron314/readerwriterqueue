@@ -43,8 +43,12 @@
 #define AE_UNUSED(x) ((void)x)
 
 // AE_NO_TSAN
-#if defined(__has_feature) && __has_feature(thread_sanitizer)
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
 #define AE_NO_TSAN __attribute__((no_sanitize("thread")))
+#else
+#define AE_NO_TSAN
+#endif
 #else
 #define AE_NO_TSAN
 #endif
