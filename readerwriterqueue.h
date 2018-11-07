@@ -86,7 +86,7 @@ public:
 	// allocations. If more than MAX_BLOCK_SIZE elements are requested,
 	// then several blocks of MAX_BLOCK_SIZE each are reserved (including
 	// at least one extra buffer block).
-	explicit ReaderWriterQueue(size_t maxSize = 15) AE_NO_TSAN
+	AE_NO_TSAN explicit ReaderWriterQueue(size_t maxSize = 15)
 #ifndef NDEBUG
 		: enqueuing(false)
 		,dequeuing(false)
@@ -147,7 +147,7 @@ public:
 
 	// Note: The queue should not be accessed concurrently while it's
 	// being moved. It's up to the user to synchronize this.
-	ReaderWriterQueue(ReaderWriterQueue&& other) AE_NO_TSAN
+	AE_NO_TSAN ReaderWriterQueue(ReaderWriterQueue&& other)
 		: frontBlock(other.frontBlock.load()),
 		tailBlock(other.tailBlock.load()),
 		largestBlockSize(other.largestBlockSize)
@@ -186,7 +186,7 @@ public:
 
 	// Note: The queue should not be accessed concurrently while it's
 	// being deleted. It's up to the user to synchronize this.
-	~ReaderWriterQueue() AE_NO_TSAN
+	AE_NO_TSAN ~ReaderWriterQueue()
 	{
 		// Make sure we get the latest version of all variables from other CPUs:
 		fence(memory_order_sync);
@@ -640,14 +640,14 @@ private:
 #ifndef NDEBUG
 	struct ReentrantGuard
 	{
-		ReentrantGuard(bool& _inSection) AE_NO_TSAN
+		AE_NO_TSAN ReentrantGuard(bool& _inSection)
 			: inSection(_inSection)
 		{
 			assert(!inSection && "ReaderWriterQueue does not support enqueuing or dequeuing elements from other elements' ctors and dtors");
 			inSection = true;
 		}
 
-		~ReentrantGuard() AE_NO_TSAN { inSection = false; }
+		AE_NO_TSAN ~ReentrantGuard() { inSection = false; }
 
 	private:
 		ReentrantGuard& operator=(ReentrantGuard const&);
@@ -676,7 +676,7 @@ private:
 
 
 		// size must be a power of two (and greater than 0)
-		Block(size_t const& _size, char* _rawThis, char* _data) AE_NO_TSAN
+		AE_NO_TSAN Block(size_t const& _size, char* _rawThis, char* _data)
 			: front(0), localTail(0), tail(0), localFront(0), next(nullptr), data(_data), sizeMask(_size - 1), rawThis(_rawThis)
 		{
 		}

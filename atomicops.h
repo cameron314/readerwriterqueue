@@ -242,7 +242,7 @@ public:
 	template<typename U> AE_NO_TSAN weak_atomic(U&& x) : value(std::forward<U>(x)) {  }
 #ifdef __cplusplus_cli
 	// Work around bug with universal reference/nullptr combination that only appears when /clr is on
-	weak_atomic(nullptr_t) AE_NO_TSAN : value(nullptr) {  }
+	AE_NO_TSAN weak_atomic(nullptr_t) : value(nullptr) {  }
 #endif
 	AE_NO_TSAN weak_atomic(weak_atomic const& other) : value(other.load()) {  }
 	AE_NO_TSAN weak_atomic(weak_atomic&& other) : value(std::move(other.load())) {  }
@@ -384,14 +384,14 @@ namespace moodycamel
 		    Semaphore& operator=(const Semaphore& other);
 
 		public:
-		    Semaphore(int initialCount = 0) AE_NO_TSAN
+		    AE_NO_TSAN Semaphore(int initialCount = 0)
 		    {
 		        assert(initialCount >= 0);
 		        const long maxLong = 0x7fffffff;
 		        m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
 		    }
 
-		    ~Semaphore() AE_NO_TSAN
+		    AE_NO_TSAN ~Semaphore()
 		    {
 		        CloseHandle(m_hSema);
 		    }
@@ -433,13 +433,13 @@ namespace moodycamel
 		    Semaphore& operator=(const Semaphore& other);
 
 		public:
-		    Semaphore(int initialCount = 0) AE_NO_TSAN
+		    AE_NO_TSAN Semaphore(int initialCount = 0)
 		    {
 		        assert(initialCount >= 0);
 		        semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
 		    }
 
-		    ~Semaphore() AE_NO_TSAN
+		    AE_NO_TSAN ~Semaphore()
 		    {
 		        semaphore_destroy(mach_task_self(), m_sema);
 		    }
@@ -492,13 +492,13 @@ namespace moodycamel
 		    Semaphore& operator=(const Semaphore& other);
 
 		public:
-		    Semaphore(int initialCount = 0) AE_NO_TSAN
+		    AE_NO_TSAN Semaphore(int initialCount = 0)
 		    {
 		        assert(initialCount >= 0);
 		        sem_init(&m_sema, 0, initialCount);
 		    }
 
-		    ~Semaphore() AE_NO_TSAN
+		    AE_NO_TSAN ~Semaphore()
 		    {
 		        sem_destroy(&m_sema);
 		    }
@@ -618,7 +618,7 @@ namespace moodycamel
 		    }
 
 		public:
-		    LightweightSemaphore(ssize_t initialCount = 0) AE_NO_TSAN : m_count(initialCount)
+		    AE_NO_TSAN LightweightSemaphore(ssize_t initialCount = 0) : m_count(initialCount)
 		    {
 		        assert(initialCount >= 0);
 		    }
