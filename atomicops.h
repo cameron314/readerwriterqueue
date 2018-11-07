@@ -44,7 +44,7 @@
 
 // AE_NO_TSAN
 #if defined(__has_feature) && __has_feature(thread_sanitizer)
-#define AE_NO_TSAN __attribute__((no_sanitize(thread)))
+#define AE_NO_TSAN __attribute__((no_sanitize("thread")))
 #else
 #define AE_NO_TSAN
 #endif
@@ -234,30 +234,30 @@ template<typename T>
 class weak_atomic
 {
 public:
-	weak_atomic() AE_NO_TSAN { }
+	AE_NO_TSAN weak_atomic() { }
 #ifdef AE_VCPP
 #pragma warning(push)
 #pragma warning(disable: 4100)		// Get rid of (erroneous) 'unreferenced formal parameter' warning
 #endif
-	template<typename U> weak_atomic(U&& x) AE_NO_TSAN : value(std::forward<U>(x)) {  }
+	template<typename U> AE_NO_TSAN weak_atomic(U&& x) : value(std::forward<U>(x)) {  }
 #ifdef __cplusplus_cli
 	// Work around bug with universal reference/nullptr combination that only appears when /clr is on
 	weak_atomic(nullptr_t) AE_NO_TSAN : value(nullptr) {  }
 #endif
-	weak_atomic(weak_atomic const& other) AE_NO_TSAN : value(other.load()) {  }
-	weak_atomic(weak_atomic&& other) AE_NO_TSAN : value(std::move(other.load())) {  }
+	AE_NO_TSAN weak_atomic(weak_atomic const& other) : value(other.load()) {  }
+	AE_NO_TSAN weak_atomic(weak_atomic&& other) : value(std::move(other.load())) {  }
 #ifdef AE_VCPP
 #pragma warning(pop)
 #endif
 
-	AE_FORCEINLINE operator T() AE_NO_TSAN const { return load(); }
+	AE_FORCEINLINE operator T() const AE_NO_TSAN { return load(); }
 
 	
 #ifndef AE_USE_STD_ATOMIC_FOR_WEAK_ATOMIC
 	template<typename U> AE_FORCEINLINE weak_atomic const& operator=(U&& x) AE_NO_TSAN { value = std::forward<U>(x); return *this; }
 	AE_FORCEINLINE weak_atomic const& operator=(weak_atomic const& other) AE_NO_TSAN { value = other.value; return *this; }
 	
-	AE_FORCEINLINE T load() AE_NO_TSAN const { return value; }
+	AE_FORCEINLINE T load() const AE_NO_TSAN { return value; }
 	
 	AE_FORCEINLINE T fetch_add_acquire(T increment) AE_NO_TSAN
 	{
@@ -300,7 +300,7 @@ public:
 		return *this;
 	}
 
-	AE_FORCEINLINE T load() AE_NO_TSAN const { return value.load(std::memory_order_relaxed); }
+	AE_FORCEINLINE T load() const AE_NO_TSAN { return value.load(std::memory_order_relaxed); }
 	
 	AE_FORCEINLINE T fetch_add_acquire(T increment) AE_NO_TSAN
 	{
@@ -655,7 +655,7 @@ namespace moodycamel
 		        }
 		    }
 		    
-		    ssize_t availableApprox() AE_NO_TSAN const
+		    ssize_t availableApprox() const AE_NO_TSAN
 		    {
 		    	ssize_t count = m_count.load();
 		    	return count > 0 ? count : 0;

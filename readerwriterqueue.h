@@ -475,7 +475,7 @@ public:
 	
 	// Returns the approximate number of items currently in the queue.
 	// Safe to call from both the producer and consumer threads.
-	inline size_t size_approx() AE_NO_TSAN const
+	inline size_t size_approx() const AE_NO_TSAN
 	{
 		size_t result = 0;
 		Block* frontBlock_ = frontBlock.load();
@@ -883,7 +883,7 @@ public:
 	
 	// Returns the approximate number of items currently in the queue.
 	// Safe to call from both the producer and consumer threads.
-	AE_FORCEINLINE size_t size_approx() AE_NO_TSAN const
+	AE_FORCEINLINE size_t size_approx() const AE_NO_TSAN
 	{
 		return sema->availableApprox();
 	}
