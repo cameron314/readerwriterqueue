@@ -643,7 +643,7 @@ private:
 		AE_NO_TSAN ReentrantGuard(bool& _inSection)
 			: inSection(_inSection)
 		{
-			assert(!inSection && "ReaderWriterQueue does not support enqueuing or dequeuing elements from other elements' ctors and dtors");
+			assert(!inSection && "Concurrent (or re-entrant) enqueue or dequeue operation detected (only one thread at a time may hold the producer or consumer role)");
 			inSection = true;
 		}
 
