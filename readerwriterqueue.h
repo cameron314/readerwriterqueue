@@ -82,30 +82,30 @@ class ReaderWriterQueue
 public:
 	typedef T value_type;
 
-	// Constructs a queue that can hold maxSize elements without further
+	// Constructs a queue that can hold at least `size` elements without further
 	// allocations. If more than MAX_BLOCK_SIZE elements are requested,
 	// then several blocks of MAX_BLOCK_SIZE each are reserved (including
 	// at least one extra buffer block).
-	AE_NO_TSAN explicit ReaderWriterQueue(size_t maxSize = 15)
+	AE_NO_TSAN explicit ReaderWriterQueue(size_t size = 15)
 #ifndef NDEBUG
 		: enqueuing(false)
 		,dequeuing(false)
 #endif
 	{
-		assert(maxSize > 0);
+		assert(size > 0);
 		assert(MAX_BLOCK_SIZE == ceilToPow2(MAX_BLOCK_SIZE) && "MAX_BLOCK_SIZE must be a power of 2");
 		assert(MAX_BLOCK_SIZE >= 2 && "MAX_BLOCK_SIZE must be at least 2");
 		
 		Block* firstBlock = nullptr;
 		
-		largestBlockSize = ceilToPow2(maxSize + 1);		// We need a spare slot to fit maxSize elements in the block
+		largestBlockSize = ceilToPow2(size + 1);		// We need a spare slot to fit size elements in the block
 		if (largestBlockSize > MAX_BLOCK_SIZE * 2) {
 			// We need a spare block in case the producer is writing to a different block the consumer is reading from, and
 			// wants to enqueue the maximum number of elements. We also need a spare element in each block to avoid the ambiguity
 			// between front == tail meaning "empty" and "full".
 			// So the effective number of slots that are guaranteed to be usable at any time is the block size - 1 times the
-			// number of blocks - 1. Solving for maxSize and applying a ceiling to the division gives us (after simplifying):
-			size_t initialBlockCount = (maxSize + MAX_BLOCK_SIZE * 2 - 3) / (MAX_BLOCK_SIZE - 1);
+			// number of blocks - 1. Solving for size and applying a ceiling to the division gives us (after simplifying):
+			size_t initialBlockCount = (size + MAX_BLOCK_SIZE * 2 - 3) / (MAX_BLOCK_SIZE - 1);
 			largestBlockSize = MAX_BLOCK_SIZE;
 			Block* lastBlock = nullptr;
 			for (size_t i = 0; i != initialBlockCount; ++i) {
@@ -727,8 +727,8 @@ private:
 	typedef ::moodycamel::ReaderWriterQueue<T, MAX_BLOCK_SIZE> ReaderWriterQueue;
 	
 public:
-	explicit BlockingReaderWriterQueue(size_t maxSize = 15) AE_NO_TSAN
-		: inner(maxSize), sema(new spsc_sema::LightweightSemaphore())
+	explicit BlockingReaderWriterQueue(size_t size = 15) AE_NO_TSAN
+		: inner(size), sema(new spsc_sema::LightweightSemaphore())
 	{ }
 
 	BlockingReaderWriterQueue(BlockingReaderWriterQueue&& other) AE_NO_TSAN
