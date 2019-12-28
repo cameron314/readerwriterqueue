@@ -393,6 +393,7 @@ namespace moodycamel
 		        assert(initialCount >= 0);
 		        const long maxLong = 0x7fffffff;
 		        m_hSema = CreateSemaphoreW(nullptr, initialCount, maxLong, nullptr);
+		        assert(m_hSema);
 		    }
 
 		    AE_NO_TSAN ~Semaphore()
@@ -400,27 +401,25 @@ namespace moodycamel
 		        CloseHandle(m_hSema);
 		    }
 
-		    void wait() AE_NO_TSAN
+		    bool wait() AE_NO_TSAN
 		    {
 		    	const unsigned long infinite = 0xffffffff;
-		        WaitForSingleObject(m_hSema, infinite);
+		        return WaitForSingleObject(m_hSema, infinite) == 0;
 		    }
 
 			bool try_wait() AE_NO_TSAN
 			{
-				const unsigned long RC_WAIT_TIMEOUT = 0x00000102;
-				return WaitForSingleObject(m_hSema, 0) != RC_WAIT_TIMEOUT;
+				return WaitForSingleObject(m_hSema, 0) == 0;
 			}
 
 			bool timed_wait(std::uint64_t usecs) AE_NO_TSAN
 			{
-				const unsigned long RC_WAIT_TIMEOUT = 0x00000102;
-				return WaitForSingleObject(m_hSema, (unsigned long)(usecs / 1000)) != RC_WAIT_TIMEOUT;
+				return WaitForSingleObject(m_hSema, (unsigned long)(usecs / 1000)) == 0;
 			}
 
 		    void signal(int count = 1) AE_NO_TSAN
 		    {
-		        ReleaseSemaphore(m_hSema, count, nullptr);
+		        while (!ReleaseSemaphore(m_hSema, count, nullptr));
 		    }
 		};
 #elif defined(__MACH__)
@@ -440,7 +439,8 @@ namespace moodycamel
 		    AE_NO_TSAN Semaphore(int initialCount = 0)
 		    {
 		        assert(initialCount >= 0);
-		        semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
+		        kern_return_t rc = semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
+		        assert(rc == KERN_SUCCESS);
 		    }
 
 		    AE_NO_TSAN ~Semaphore()
@@ -448,9 +448,9 @@ namespace moodycamel
 		        semaphore_destroy(mach_task_self(), m_sema);
 		    }
 
-		    void wait() AE_NO_TSAN
+		    bool wait() AE_NO_TSAN
 		    {
-		        semaphore_wait(m_sema);
+		        return semaphore_wait(m_sema) == KERN_SUCCESS;
 		    }
 
 			bool try_wait() AE_NO_TSAN
@@ -466,20 +466,19 @@ namespace moodycamel
 
 				// added in OSX 10.10: https://developer.apple.com/library/prerelease/mac/documentation/General/Reference/APIDiffsMacOSX10_10SeedDiff/modules/Darwin.html
 				kern_return_t rc = semaphore_timedwait(m_sema, ts);
-
-				return rc != KERN_OPERATION_TIMED_OUT && rc != KERN_ABORTED;
+				return rc == KERN_SUCCESS;
 			}
 
 		    void signal() AE_NO_TSAN
 		    {
-		        semaphore_signal(m_sema);
+		        while (semaphore_signal(m_sema) != KERN_SUCCESS);
 		    }
 
 		    void signal(int count) AE_NO_TSAN
 		    {
 		        while (count-- > 0)
 		        {
-		            semaphore_signal(m_sema);
+		            while (semaphore_signal(m_sema) != KERN_SUCCESS);
 		        }
 		    }
 		};
@@ -499,7 +498,8 @@ namespace moodycamel
 		    AE_NO_TSAN Semaphore(int initialCount = 0)
 		    {
 		        assert(initialCount >= 0);
-		        sem_init(&m_sema, 0, initialCount);
+		        int rc = sem_init(&m_sema, 0, initialCount);
+		        assert(rc == 0);
 		    }
 
 		    AE_NO_TSAN ~Semaphore()
@@ -507,7 +507,7 @@ namespace moodycamel
 		        sem_destroy(&m_sema);
 		    }
 
-		    void wait() AE_NO_TSAN
+		    bool wait() AE_NO_TSAN
 		    {
 		        // http://stackoverflow.com/questions/2013181/gdb-causes-sem-wait-to-fail-with-eintr-error
 		        int rc;
@@ -516,6 +516,7 @@ namespace moodycamel
 		            rc = sem_wait(&m_sema);
 		        }
 		        while (rc == -1 && errno == EINTR);
+		        return rc == 0;
 		    }
 
 			bool try_wait() AE_NO_TSAN
@@ -524,7 +525,7 @@ namespace moodycamel
 				do {
 					rc = sem_trywait(&m_sema);
 				} while (rc == -1 && errno == EINTR);
-				return !(rc == -1 && errno == EAGAIN);
+				return rc == 0;
 			}
 
 			bool timed_wait(std::uint64_t usecs) AE_NO_TSAN
@@ -546,19 +547,19 @@ namespace moodycamel
 				do {
 					rc = sem_timedwait(&m_sema, &ts);
 				} while (rc == -1 && errno == EINTR);
-				return !(rc == -1 && errno == ETIMEDOUT);
+				return rc == 0;
 			}
 
 		    void signal() AE_NO_TSAN
 		    {
-		        sem_post(&m_sema);
+		        while (sem_post(&m_sema) == -1);
 		    }
 
 		    void signal(int count) AE_NO_TSAN
 		    {
 		        while (count-- > 0)
 		        {
-		            sem_post(&m_sema);
+		            while (sem_post(&m_sema) == -1);
 		        }
 		    }
 		};
@@ -598,10 +599,7 @@ namespace moodycamel
 				if (oldCount > 0)
 					return true;
 		        if (timeout_usecs < 0)
-				{
-					m_sema.wait();
-					return true;
-				}
+					return m_sema.wait();
 				if (m_sema.timed_wait(timeout_usecs))
 					return true;
 				// At this point, we've timed out waiting for the semaphore, but the
@@ -637,10 +635,9 @@ namespace moodycamel
 		        return false;
 		    }
 
-		    void wait() AE_NO_TSAN
+		    bool wait() AE_NO_TSAN
 		    {
-		        if (!tryWait())
-		            waitWithPartialSpinning();
+		        return tryWait() || waitWithPartialSpinning();
 		    }
 
 			bool wait(std::int64_t timeout_usecs) AE_NO_TSAN

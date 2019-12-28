@@ -814,7 +814,7 @@ public:
 	template<typename U>
 	void wait_dequeue(U& result) AE_NO_TSAN
 	{
-		sema->wait();
+		while (!sema->wait());
 		bool success = inner.try_dequeue(result);
 		AE_UNUSED(result);
 		assert(success);
