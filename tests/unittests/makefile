@@ -1,3 +1,5 @@
+
+
 ifeq ($(OS),Windows_NT)
 	EXT=.exe
 	PLATFORM_OPTS=-static

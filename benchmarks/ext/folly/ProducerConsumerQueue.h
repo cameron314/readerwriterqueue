@@ -21,6 +21,7 @@
 #ifndef PRODUCER_CONSUMER_QUEUE_H_
 #define PRODUCER_CONSUMER_QUEUE_H_
 
+#include <new>
 #include <atomic>
 #include <cassert>
 #include <cstdlib>

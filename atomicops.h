@@ -11,6 +11,7 @@
 // Also has a basic atomic type (limited to hardware-supported atomics with no memory ordering guarantees).
 // Uses the AE_* prefix for macros (historical reasons), and the "moodycamel" namespace for symbols.
 
+#include <cerrno>
 #include <cassert>
 #include <type_traits>
 #include <cerrno>
