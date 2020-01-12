@@ -883,7 +883,7 @@ public:
 	// queue appears empty at the time the method is called, nullptr is
 	// returned instead.
 	// Must be called only from the consumer thread.
-	AE_FORCEINLINE T* peek() AE_NO_TSAN
+	AE_FORCEINLINE T* peek() const AE_NO_TSAN
 	{
 		return inner.peek();
 	}
