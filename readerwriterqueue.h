@@ -1,4 +1,4 @@
-// ©2013-2016 Cameron Desrochers.
+// ©2013-2020 Cameron Desrochers.
 // Distributed under the simplified BSD license (see the license file that
 // should have come with this header).
 
@@ -367,7 +367,7 @@ public:
 	// queue appears empty at the time the method is called, nullptr is
 	// returned instead.
 	// Must be called only from the consumer thread.
-	T* peek() AE_NO_TSAN
+	T* peek() const AE_NO_TSAN
 	{
 #ifndef NDEBUG
 		ReentrantGuard guard(this->dequeuing);
@@ -736,7 +736,7 @@ private:
 
 #ifndef NDEBUG
 	bool enqueuing;
-	bool dequeuing;
+	mutable bool dequeuing;
 #endif
 };
 
@@ -883,7 +883,7 @@ public:
 	// queue appears empty at the time the method is called, nullptr is
 	// returned instead.
 	// Must be called only from the consumer thread.
-	AE_FORCEINLINE T* peek() AE_NO_TSAN
+	AE_FORCEINLINE T* peek() const AE_NO_TSAN
 	{
 		return inner.peek();
 	}
