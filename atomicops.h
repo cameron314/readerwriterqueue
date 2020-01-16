@@ -499,8 +499,7 @@ namespace moodycamel
 		    AE_NO_TSAN Semaphore(int initialCount = 0)
 		    {
 		        assert(initialCount >= 0);
-		        int rc = sem_init(&m_sema, 0, initialCount);
-		        assert(rc == 0);
+		        assert(sem_init(&m_sema, 0, initialCount) == 0);
 		    }
 
 		    AE_NO_TSAN ~Semaphore()
