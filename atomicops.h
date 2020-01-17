@@ -442,6 +442,7 @@ namespace moodycamel
 		        assert(initialCount >= 0);
 		        kern_return_t rc = semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
 		        assert(rc == KERN_SUCCESS);
+				AE_UNUSED(rc);
 		    }
 
 		    AE_NO_TSAN ~Semaphore()
@@ -501,6 +502,7 @@ namespace moodycamel
 		        assert(initialCount >= 0);
 		        int rc = sem_init(&m_sema, 0, initialCount);
 		        assert(rc == 0);
+				AE_UNUSED(rc);
 		    }
 
 		    AE_NO_TSAN ~Semaphore()
