@@ -695,10 +695,6 @@ private:
 
 	struct Block
 	{
-		// The cacheline padding was done by uninitialized char arrays before – which cppcheck disliked. Using
-		// a bitfield approach solved this issue
-		static constexpr size_t cachelinePaddingInBits = (MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<size_t>) - sizeof(size_t)) * 8;
-
 		// Avoid false-sharing by putting highly contended variables on their own cache lines
 		weak_atomic<size_t> front;	// (Atomic) Elements are read from here
 		size_t localTail;			// An uncontended shadow copy of tail, owned by the consumer
@@ -708,7 +704,8 @@ private:
 		weak_atomic<size_t> tail;	// (Atomic) Elements are enqueued here
 		size_t localFront;
 
-		CachelinePadding<weak_atomic<size_t>, size_t> pad1;
+		CachelinePadding<weak_atomic<size_t>, size_t> pad1 // next isn't very contended, but we don't want it on the same cache line as tail (which is)
+
 		weak_atomic<Block*> next;	// (Atomic)
 
 		char* data;		// Contents (on heap) are aligned to T's alignment
