@@ -650,7 +650,7 @@ private:
 		++x;
 		return x;
 	}
-	
+
 	template<typename U>
 	static AE_FORCEINLINE char* align_for(char* ptr) AE_NO_TSAN
 	{
@@ -678,19 +678,39 @@ private:
 	};
 #endif
 
+	// A struct that does nothing but taking up dummy space of the size MOODYCAMEL_CACHE_LINE_SIZE - sizesum<TypesBeforePadding...>() bytes
+	template <typename... TypesBeforePadding>
+	struct CachelinePadding
+	{
+		CachelinePadding() = default;
+
+		// The following 4 lines could become an easy to read C++17 fold expression...
+		template <typename FirstType, typename... NextTypes, std::enable_if_t<sizeof...(NextTypes) >= 1>* = nullptr>
+		static constexpr size_t sizesum() { return sizeof (FirstType) + sizesum<NextTypes...>(); }
+		template <typename LastType>
+		static constexpr size_t sizesum() { return sizeof (LastType); }
+
+		std::array<char, MOODYCAMEL_CACHE_LINE_SIZE - sizesum<TypesBeforePadding...>()> dummyArray;
+	};
+
 	struct Block
 	{
+		// The cacheline padding was done by uninitialized char arrays before – which cppcheck disliked. Using
+		// a bitfield approach solved this issue
+		static constexpr size_t cachelinePaddingInBits = (MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<size_t>) - sizeof(size_t)) * 8;
+
 		// Avoid false-sharing by putting highly contended variables on their own cache lines
 		weak_atomic<size_t> front;	// (Atomic) Elements are read from here
 		size_t localTail;			// An uncontended shadow copy of tail, owned by the consumer
-		
-		char cachelineFiller0[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<size_t>) - sizeof(size_t)];
+
+		CachelinePadding<weak_atomic<size_t>, size_t> pad0;
+
 		weak_atomic<size_t> tail;	// (Atomic) Elements are enqueued here
 		size_t localFront;
-		
-		char cachelineFiller1[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<size_t>) - sizeof(size_t)];	// next isn't very contended, but we don't want it on the same cache line as tail (which is)
+
+		CachelinePadding<weak_atomic<size_t>, size_t> pad1;
 		weak_atomic<Block*> next;	// (Atomic)
-		
+
 		char* data;		// Contents (on heap) are aligned to T's alignment
 
 		const size_t sizeMask;
@@ -709,8 +729,8 @@ private:
 	public:
 		char* rawThis;
 	};
-	
-	
+
+
 	static Block* make_block(size_t capacity) AE_NO_TSAN
 	{
 		// Allocate enough memory for the block itself, as well as all the elements it will contain
@@ -720,7 +740,7 @@ private:
 		if (newBlockRaw == nullptr) {
 			return nullptr;
 		}
-		
+
 		auto newBlockAligned = align_for<Block>(newBlockRaw);
 		auto newBlockData = align_for<T>(newBlockAligned + sizeof(Block));
 		return new (newBlockAligned) Block(capacity, newBlockRaw, newBlockData);
@@ -728,8 +748,9 @@ private:
 
 private:
 	weak_atomic<Block*> frontBlock;		// (Atomic) Elements are enqueued to this block
-	
-	char cachelineFiller[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<Block*>)];
+
+	CachelinePadding<weak_atomic<Block*>> pad;
+
 	weak_atomic<Block*> tailBlock;		// (Atomic) Elements are dequeued from this block
 
 	size_t largestBlockSize;
@@ -746,7 +767,7 @@ class BlockingReaderWriterQueue
 {
 private:
 	typedef ::moodycamel::ReaderWriterQueue<T, MAX_BLOCK_SIZE> ReaderWriterQueue;
-	
+
 public:
 	explicit BlockingReaderWriterQueue(size_t size = 15) AE_NO_TSAN
 		: inner(size), sema(new spsc_sema::LightweightSemaphore())
@@ -828,8 +849,8 @@ public:
 		}
 		return false;
 	}
-	
-	
+
+
 	// Attempts to dequeue an element; if the queue is empty,
 	// waits until an element is available, then dequeues it.
 	template<typename U>
