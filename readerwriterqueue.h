@@ -631,10 +631,10 @@ private:
 
 
 	// Disable copying
-	ReaderWriterQueue(ReaderWriterQueue const&) {  }
+	ReaderWriterQueue(ReaderWriterQueue const&) = delete;
 
 	// Disable assignment
-	ReaderWriterQueue& operator=(ReaderWriterQueue const&) {  }
+	ReaderWriterQueue& operator=(ReaderWriterQueue const&) = delete;
 
 
 	AE_FORCEINLINE static size_t ceilToPow2(size_t x)
@@ -924,8 +924,8 @@ public:
 
 private:
 	// Disable copying & assignment
-	BlockingReaderWriterQueue(BlockingReaderWriterQueue const&) {  }
-	BlockingReaderWriterQueue& operator=(BlockingReaderWriterQueue const&) {  }
+	BlockingReaderWriterQueue(BlockingReaderWriterQueue const&) = delete;
+	BlockingReaderWriterQueue& operator=(BlockingReaderWriterQueue const&) = delete;
 	
 private:
 	ReaderWriterQueue inner;
