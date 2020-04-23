@@ -704,7 +704,7 @@ private:
 		weak_atomic<size_t> tail;	// (Atomic) Elements are enqueued here
 		size_t localFront;
 
-		CachelinePadding<weak_atomic<size_t>, size_t> pad1 // next isn't very contended, but we don't want it on the same cache line as tail (which is)
+		CachelinePadding<weak_atomic<size_t>, size_t> pad1; // next isn't very contended, but we don't want it on the same cache line as tail (which is)
 
 		weak_atomic<Block*> next;	// (Atomic)
 
