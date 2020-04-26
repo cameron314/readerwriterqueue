@@ -90,7 +90,22 @@ means care must be taken to only call `wait_dequeue` if you're sure another elem
 will come along eventually, or if the queue has a static lifetime. This is because
 destroying the queue while a thread is waiting on it will invoke undefined behaviour.
 
-    
+## CMake installation
+As an alternative to including the source files in your project directly,
+you can use CMake to install the library in your system's include directory:
+
+```
+mkdir build
+cd build
+cmake ..
+make install
+```
+
+Then, you can include it from your source code:
+```
+#include <readerwriterqueue/readerwriterqueue.h>
+```
+
 ## Disclaimers
 
 The queue should only be used on platforms where aligned integer and pointer access is atomic; fortunately, that
