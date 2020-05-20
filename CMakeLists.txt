@@ -5,5 +5,5 @@ include(GNUInstallDirs)
 
 add_library(${PROJECT_NAME} INTERFACE)
 
-install(FILES atomicops.h readerwriterqueue.h
+install(FILES atomicops.h readerwriterqueue.h LICENSE.md
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
