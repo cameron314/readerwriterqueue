@@ -727,10 +727,10 @@ private:
 	}
 
 private:
-	weak_atomic<Block*> frontBlock;		// (Atomic) Elements are enqueued to this block
+	weak_atomic<Block*> frontBlock;		// (Atomic) Elements are dequeued from this block
 	
 	char cachelineFiller[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(weak_atomic<Block*>)];
-	weak_atomic<Block*> tailBlock;		// (Atomic) Elements are dequeued from this block
+	weak_atomic<Block*> tailBlock;		// (Atomic) Elements are enqueued to this block
 
 	size_t largestBlockSize;
 
