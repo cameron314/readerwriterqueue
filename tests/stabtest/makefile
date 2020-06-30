@@ -12,6 +12,7 @@ else
 		EXT=
 		PLATFORM_OPTS=
 		PLATFORM_LD_OPTS=-lrt -Wl,--no-as-needed
+	endif
 endif
 
 default: stabtest$(EXT)
