@@ -831,7 +831,7 @@ public:
 	template<typename... Args>
 	AE_FORCEINLINE bool emplace(Args&&... args) AE_NO_TSAN
 	{
-		if (inner.enqueue(std::forward<Args>(args)...)) {
+		if (inner.emplace(std::forward<Args>(args)...)) {
 			sema->signal();
 			return true;
 		}
