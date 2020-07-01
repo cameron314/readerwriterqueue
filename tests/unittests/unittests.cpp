@@ -567,6 +567,21 @@ public:
 			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 1));
 			ASSERT_OR_FAIL(result.load());
 		}
+
+#if MOODYCAMEL_HAS_EMPLACE
+		{
+			BlockingReaderWriterQueue<UniquePtrWrapper> q(100);
+			std::unique_ptr<int> p { new int(123) };
+			q.emplace(std::move(p));
+			q.try_emplace(std::move(p));
+			UniquePtrWrapper item;
+			ASSERT_OR_FAIL(q.wait_dequeue_timed(item, 0));
+			ASSERT_OR_FAIL(item.get_value() == 123);
+			ASSERT_OR_FAIL(q.wait_dequeue_timed(item, 0));
+			ASSERT_OR_FAIL(item.get_ptr() == nullptr);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+		}
+#endif
 		
 		return true;
 	}

@@ -788,6 +788,19 @@ public:
 		return false;
 	}
 
+#if MOODYCAMEL_HAS_EMPLACE
+	// Like try_enqueue() but with emplace semantics (i.e. construct-in-place).
+	template<typename... Args>
+	AE_FORCEINLINE bool try_emplace(Args&&... args) AE_NO_TSAN
+	{
+		if (inner.try_emplace(std::forward<Args>(args)...)) {
+			sema->signal();
+			return true;
+		}
+		return false;
+	}
+#endif
+
 
 	// Enqueues a copy of element on the queue.
 	// Allocates an additional block of memory if needed.
@@ -812,6 +825,19 @@ public:
 		}
 		return false;
 	}
+
+#if MOODYCAMEL_HAS_EMPLACE
+	// Like enqueue() but with emplace semantics (i.e. construct-in-place).
+	template<typename... Args>
+	AE_FORCEINLINE bool emplace(Args&&... args) AE_NO_TSAN
+	{
+		if (inner.enqueue(std::forward<Args>(args)...)) {
+			sema->signal();
+			return true;
+		}
+		return false;
+	}
+#endif
 
 
 	// Attempts to dequeue an element; if the queue is empty,
