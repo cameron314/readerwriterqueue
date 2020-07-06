@@ -58,7 +58,7 @@
 namespace moodycamel {
 
 template<typename T, size_t MAX_BLOCK_SIZE = 512>
-class ReaderWriterQueue
+class AE_ALIGN(MOODYCAMEL_CACHE_LINE_SIZE) ReaderWriterQueue
 {
 	// Design: Based on a queue-of-queues. The low-level queues are just
 	// circular buffers with front and tail indices indicating where the
