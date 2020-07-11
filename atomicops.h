@@ -537,8 +537,8 @@ namespace moodycamel
 				const int usecs_in_1_sec = 1000000;
 				const int nsecs_in_1_sec = 1000000000;
 				clock_gettime(CLOCK_REALTIME, &ts);
-				ts.tv_sec += usecs / usecs_in_1_sec;
-				ts.tv_nsec += (usecs % usecs_in_1_sec) * 1000;
+				ts.tv_sec += (time_t)(usecs / usecs_in_1_sec);
+				ts.tv_nsec += (long)(usecs % usecs_in_1_sec) * 1000;
 				// sem_timedwait bombs if you have more than 1e9 in tv_nsec
 				// so we have to clean things up before passing it in
 				if (ts.tv_nsec >= nsecs_in_1_sec) {
@@ -588,7 +588,7 @@ namespace moodycamel
 		        // Is there a better way to set the initial spin count?
 		        // If we lower it to 1000, testBenaphore becomes 15x slower on my Core i7-5930K Windows PC,
 		        // as threads start hitting the kernel semaphore.
-		        int spin = 10000;
+		        int spin = 1024;
 		        while (--spin >= 0)
 		        {
 		            if (m_count.load() > 0)
@@ -602,8 +602,11 @@ namespace moodycamel
 				if (oldCount > 0)
 					return true;
 		        if (timeout_usecs < 0)
-					return m_sema.wait();
-				if (m_sema.timed_wait(timeout_usecs))
+				{
+					if (m_sema.wait())
+						return true;
+				}
+				if (timeout_usecs > 0 && m_sema.timed_wait(timeout_usecs))
 					return true;
 				// At this point, we've timed out waiting for the semaphore, but the
 				// count is still decremented indicating we may still be waiting on
