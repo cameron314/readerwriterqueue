@@ -64,14 +64,18 @@ BlockingReaderWriterQueue<int> q;
 
 std::thread reader([&]() {
     int item;
+#if 1
     for (int i = 0; i != 100; ++i) {
         // Fully-blocking:
         q.wait_dequeue(item);
-
+    }
+#else
+    for (int i = 0; i != 100; ) {
         // Blocking with timeout
         if (q.wait_dequeue_timed(item, std::chrono::milliseconds(5)))
             ++i;
     }
+#endif
 });
 std::thread writer([&]() {
     for (int i = 0; i != 100; ++i) {
