@@ -48,6 +48,15 @@
 #endif
 #endif
 
+#ifndef MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
+#if TARGET_OS_MAC &&  __cplusplus >= 201703L
+// C++17 new(size_t, align_val_t) is not backwards-compatible with older versions of macOS, so we can't support over-alignment in this case
+#define MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
+#else
+#define MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE AE_ALIGN(MOODYCAMEL_CACHE_LINE_SIZE)
+#endif
+#endif
+
 #ifdef AE_VCPP
 #pragma warning(push)
 #pragma warning(disable: 4324)	// structure was padded due to __declspec(align())
@@ -58,7 +67,7 @@
 namespace moodycamel {
 
 template<typename T, size_t MAX_BLOCK_SIZE = 512>
-class AE_ALIGN(MOODYCAMEL_CACHE_LINE_SIZE) ReaderWriterQueue
+class MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE ReaderWriterQueue
 {
 	// Design: Based on a queue-of-queues. The low-level queues are just
 	// circular buffers with front and tail indices indicating where the
