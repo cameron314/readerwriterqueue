@@ -707,7 +707,7 @@ private:
 
 		// size must be a power of two (and greater than 0)
 		AE_NO_TSAN Block(size_t const& _size, char* _rawThis, char* _data)
-			: front(0), localTail(0), tail(0), localFront(0), next(nullptr), data(_data), sizeMask(_size - 1), rawThis(_rawThis)
+			: front(0UL), localTail(0), tail(0UL), localFront(0), next(nullptr), data(_data), sizeMask(_size - 1), rawThis(_rawThis)
 		{
 		}
 

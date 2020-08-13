@@ -662,10 +662,10 @@ namespace moodycamel
 		        }
 		    }
 		    
-		    ssize_t availableApprox() const AE_NO_TSAN
+		    std::size_t availableApprox() const AE_NO_TSAN
 		    {
 		    	ssize_t count = m_count.load();
-		    	return count > 0 ? count : 0;
+		    	return count > 0 ? static_cast<std::size_t>(count) : 0;
 		    }
 		};
 	}	// end namespace spsc_sema
