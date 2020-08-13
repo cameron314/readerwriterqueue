@@ -18,7 +18,7 @@ endif
 default: stabtest$(EXT)
 
 stabtest$(EXT): stabtest.cpp ../../readerwriterqueue.h ../../atomicops.h ../common/simplethread.h ../common/simplethread.cpp makefile
-	g++ $(PLATFORM_OPTS) -std=c++11 -Werror -Wsign-conversion -Wpedantic -Wall -DNDEBUG -O3 stabtest.cpp ../common/simplethread.cpp -o stabtest$(EXT) -pthread $(PLATFORM_LD_OPTS)
+	g++ $(PLATFORM_OPTS) -std=c++11 -Wsign-conversion -Wpedantic -Wall -DNDEBUG -O3 stabtest.cpp ../common/simplethread.cpp -o stabtest$(EXT) -pthread $(PLATFORM_LD_OPTS)
 
 run: stabtest$(EXT)
 	./stabtest$(EXT)
