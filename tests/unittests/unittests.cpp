@@ -19,7 +19,18 @@ struct Foo
 {
 	Foo() : copied(false) { id = _id()++; }
 	Foo(Foo const& other) : id(other.id), copied(true) { }
-	~Foo()
+	Foo(Foo&& other) : id(other.id), copied(other.copied) { other.copied = true; }
+	Foo& operator=(Foo&& other)
+	{
+		verify();
+		id = other.id, copied = other.copied;
+		other.copied = true;
+		return *this;
+	}
+	~Foo() { verify(); }
+
+private:
+	void verify()
 	{
 		if (copied) return;
 		if (id != _last_destroyed_id() + 1) {
@@ -28,6 +39,8 @@ struct Foo
 		_last_destroyed_id() = id;
 		++_destroy_count();
 	}
+
+public:
 	static void reset() { _destroy_count() = 0; _id() = 0; _destroyed_in_order() = true; _last_destroyed_id() = -1; }
 	static int destroy_count() { return _destroy_count(); }
 	static bool destroyed_in_order() { return _destroyed_in_order(); }
@@ -166,8 +179,6 @@ public:
 	
 	bool nonempty_destroy()
 	{
-		Foo item;
-		
 		// Some elements at beginning
 		Foo::reset();
 		{
@@ -175,6 +186,7 @@ public:
 			for (int i = 0; i != 10; ++i) {
 				q.enqueue(Foo());
 			}
+			ASSERT_OR_FAIL(Foo::destroy_count() == 0);
 		}
 		ASSERT_OR_FAIL(Foo::destroy_count() == 10);
 		ASSERT_OR_FAIL(Foo::destroyed_in_order());
@@ -186,6 +198,7 @@ public:
 			for (int i = 0; i != 31; ++i) {
 				q.enqueue(Foo());
 			}
+			ASSERT_OR_FAIL(Foo::destroy_count() == 0);
 		}
 		ASSERT_OR_FAIL(Foo::destroy_count() == 31);
 		ASSERT_OR_FAIL(Foo::destroyed_in_order());
@@ -197,6 +210,7 @@ public:
 			for (int i = 0; i != 94; ++i) {
 				q.enqueue(Foo());
 			}
+			ASSERT_OR_FAIL(Foo::destroy_count() == 0);
 		}
 		ASSERT_OR_FAIL(Foo::destroy_count() == 94);
 		ASSERT_OR_FAIL(Foo::destroyed_in_order());
@@ -205,20 +219,24 @@ public:
 		Foo::reset();
 		{
 			ReaderWriterQueue<Foo> q(31);
+			Foo item;
 			for (int i = 0; i != 42; ++i) {
 				q.enqueue(Foo());
 			}
+			ASSERT_OR_FAIL(Foo::destroy_count() == 0);
 			for (int i = 0; i != 31; ++i) {
 				ASSERT_OR_FAIL(q.try_dequeue(item));
 			}
+			ASSERT_OR_FAIL(Foo::destroy_count() == 31);
 		}
-		ASSERT_OR_FAIL(Foo::destroy_count() == 42);
+		ASSERT_OR_FAIL(Foo::destroy_count() == 43);
 		ASSERT_OR_FAIL(Foo::destroyed_in_order());
 		
 		// Some elements in multiple blocks
 		Foo::reset();
 		{
 			ReaderWriterQueue<Foo> q(31);
+			Foo item;
 			for (int i = 0; i != 123; ++i) {
 				q.enqueue(Foo());
 			}
@@ -241,7 +259,7 @@ public:
 				q.enqueue(Foo());
 			}
 		}
-		ASSERT_OR_FAIL(Foo::destroy_count() == 500);
+		ASSERT_OR_FAIL(Foo::destroy_count() == 501);
 		ASSERT_OR_FAIL(Foo::destroyed_in_order());
 		
 		return true;
