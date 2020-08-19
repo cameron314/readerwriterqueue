@@ -452,7 +452,7 @@ public:
 					fence(memory_order_release);
 					front = front.load() + 1;
 				}
-				int size = (int)q.size_approx();
+				int size = static_cast<int>(q.size_approx());
 				fence(memory_order_acquire);
 				int tail_ = tail.load();
 				int front_ = front.load();
@@ -469,7 +469,7 @@ public:
 				int tail_ = tail.load();
 				int front_ = front.load();
 				fence(memory_order_acquire);
-				int size = (int)q.size_approx();
+				int size = static_cast<int>(q.size_approx());
 				if (size > tail_ - front_ || size < 0) {
 					result = 0;
 				}
@@ -487,7 +487,7 @@ public:
 		{
 			// this math for queue size estimation is only valid for q_size <= 256
 			for (size_t q_size = 2; q_size < 256; ++q_size) {
-				ReaderWriterQueue<int> q(q_size);
+				ReaderWriterQueue<size_t> q(q_size);
 				ASSERT_OR_FAIL(q.max_capacity() == ceilToPow2(q_size+1)-1);
 
 				const size_t start_cap = q.max_capacity();
