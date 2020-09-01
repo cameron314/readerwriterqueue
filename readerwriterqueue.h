@@ -49,12 +49,18 @@
 #endif
 
 #ifndef MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
-#if TARGET_OS_MAC &&  __cplusplus >= 201703L
+#if defined (__APPLE__) && defined (__MACH__) && __cplusplus >= 201703L
+// This is required to find out what deployment target we are using
+#include <CoreFoundation/CoreFoundation.h>
+#if !defined(MAC_OS_X_VERSION_MIN_REQUIRED) || MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_14
 // C++17 new(size_t, align_val_t) is not backwards-compatible with older versions of macOS, so we can't support over-alignment in this case
 #define MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
-#else
-#define MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE AE_ALIGN(MOODYCAMEL_CACHE_LINE_SIZE)
 #endif
+#endif
+#endif
+
+#ifndef MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE
+#define MOODYCAMEL_MAYBE_ALIGN_TO_CACHELINE AE_ALIGN(MOODYCAMEL_CACHE_LINE_SIZE)
 #endif
 
 #ifdef AE_VCPP
