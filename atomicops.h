@@ -606,7 +606,7 @@ namespace moodycamel
 					if (m_sema.wait())
 						return true;
 				}
-				if (timeout_usecs > 0 && m_sema.timed_wait(timeout_usecs))
+				if (timeout_usecs > 0 && m_sema.timed_wait(static_cast<uint64_t>(timeout_usecs)))
 					return true;
 				// At this point, we've timed out waiting for the semaphore, but the
 				// count is still decremented indicating we may still be waiting on
