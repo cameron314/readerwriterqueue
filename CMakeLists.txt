@@ -5,5 +5,7 @@ include(GNUInstallDirs)
 
 add_library(${PROJECT_NAME} INTERFACE)
 
+target_include_directories(readerwriterqueue INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
 install(FILES atomicops.h readerwriterqueue.h LICENSE.md
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME})
