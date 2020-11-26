@@ -108,7 +108,6 @@ public:
 		,dequeuing(false)
 #endif
 	{
-		assert(size > 0);
 		assert(MAX_BLOCK_SIZE == ceilToPow2(MAX_BLOCK_SIZE) && "MAX_BLOCK_SIZE must be a power of 2");
 		assert(MAX_BLOCK_SIZE >= 2 && "MAX_BLOCK_SIZE must be at least 2");
 		
@@ -676,7 +675,7 @@ private:
 #ifndef NDEBUG
 	struct ReentrantGuard
 	{
-		AE_NO_TSAN ReentrantGuard(bool& _inSection)
+		AE_NO_TSAN ReentrantGuard(weak_atomic<bool>& _inSection)
 			: inSection(_inSection)
 		{
 			assert(!inSection && "Concurrent (or re-entrant) enqueue or dequeue operation detected (only one thread at a time may hold the producer or consumer role)");
@@ -689,7 +688,7 @@ private:
 		ReentrantGuard& operator=(ReentrantGuard const&);
 
 	private:
-		bool& inSection;
+		weak_atomic<bool>& inSection;
 	};
 #endif
 
@@ -750,8 +749,8 @@ private:
 	size_t largestBlockSize;
 
 #ifndef NDEBUG
-	bool enqueuing;
-	mutable bool dequeuing;
+	weak_atomic<bool> enqueuing;
+	mutable weak_atomic<bool> dequeuing;
 #endif
 };
 
