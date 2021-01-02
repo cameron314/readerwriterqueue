@@ -22,8 +22,8 @@
 // A lock-free queue for a single-consumer, single-producer architecture.
 // The queue is also wait-free in the common path (except if more memory
 // needs to be allocated, in which case malloc is called).
-// Allocates memory sparingly (O(lg(n) times, amortized), and only once if
-// the original maximum size estimate is never exceeded.
+// Allocates memory sparingly, and only once if the original maximum size
+// estimate is never exceeded.
 // Tested on x86/x64 processors, but semantics should be correct for all
 // architectures (given the right implementations in atomicops.h), provided
 // that aligned integer and pointer accesses are naturally atomic.

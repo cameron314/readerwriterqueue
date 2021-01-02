@@ -10,6 +10,7 @@
 #include "minitest.h"
 #include "../common/simplethread.h"
 #include "../../readerwriterqueue.h"
+#include "../../readerwritercircularbuffer.h"
 
 using namespace moodycamel;
 
@@ -108,6 +109,7 @@ public:
 		REGISTER_TEST(try_enqueue_fail_workaround);
 		REGISTER_TEST(try_emplace_fail);
 #endif
+		REGISTER_TEST(blocking_circular_buffer);
 	}
 	
 	bool create_empty_queue()
@@ -693,6 +695,73 @@ public:
 		return true;
 	}
 #endif
+
+	bool blocking_circular_buffer()
+	{
+		{
+			// Basic enqueue
+			BlockingReaderWriterCircularBuffer<int> q(65);
+			for (int iteration = 0; iteration != 128; ++iteration) {  // check there's no problem with mismatch between nominal and allocated capacity
+				ASSERT_OR_FAIL(q.max_capacity() == 65);
+				ASSERT_OR_FAIL(q.size_approx() == 0);
+				ASSERT_OR_FAIL(q.try_enqueue(0));
+				ASSERT_OR_FAIL(q.max_capacity() == 65);
+				ASSERT_OR_FAIL(q.size_approx() == 1);
+				for (int i = 1; i != 65; ++i)
+					q.wait_enqueue(i);
+				ASSERT_OR_FAIL(q.size_approx() == 65);
+				ASSERT_OR_FAIL(!q.try_enqueue(65));
+
+				// Basic dequeue
+				int item;
+				ASSERT_OR_FAIL(q.try_dequeue(item));
+				ASSERT_OR_FAIL(item == 0);
+				for (int i = 1; i != 65; ++i) {
+					q.wait_dequeue(item);
+					ASSERT_OR_FAIL(item == i);
+				}
+				ASSERT_OR_FAIL(!q.try_dequeue(item));
+				ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 1));
+				ASSERT_OR_FAIL(item == 64);
+			}
+		}
+
+		{
+			// Zero capacity
+			BlockingReaderWriterCircularBuffer<int> q(0);
+			ASSERT_OR_FAIL(q.max_capacity() == 0);
+			ASSERT_OR_FAIL(!q.try_enqueue(1));
+			ASSERT_OR_FAIL(!q.wait_enqueue_timed(1, 0));
+		}
+
+		weak_atomic<int> result;
+		result = 1;
+
+		{
+			// Threaded
+			BlockingReaderWriterCircularBuffer<int> q(8);
+			SimpleThread reader([&]() {
+				int item;
+				for (int i = 0; i != 1000000; ++i) {
+					q.wait_dequeue(item);
+					if (item != i)
+						result = 0;
+				}
+			});
+			SimpleThread writer([&]() {
+				for (int i = 0; i != 1000000; ++i)
+					q.wait_enqueue(i);
+			});
+
+			writer.join();
+			reader.join();
+
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(result.load());
+		}
+
+		return true;
+	}
 };
 
 
