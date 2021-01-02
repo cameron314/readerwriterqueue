@@ -50,7 +50,7 @@ public:
 		data = align_for<T>(rawData);
 	}
 
-	BlockingReaderWriterCircularBuffer(BlockingReaderWriterCircularBuffer&& other) noexcept
+	BlockingReaderWriterCircularBuffer(BlockingReaderWriterCircularBuffer&& other)
 		: maxcap(0), mask(0), rawData(nullptr), data(nullptr),
 		slots(new spsc_sema::LightweightSemaphore(0)),
 		items(new spsc_sema::LightweightSemaphore(0))
@@ -64,6 +64,8 @@ public:
 	// being deleted. It's up to the user to synchronize this.
 	~BlockingReaderWriterCircularBuffer()
 	{
+		for (std::size_t i = 0, n = items->availableApprox(); i != n; ++i)
+			reinterpret_cast<T*>(data)[(nextItem + i) & mask].~T();
 		std::free(rawData);
 	}
 
@@ -79,6 +81,7 @@ public:
 	// Not thread-safe.
 	void swap(BlockingReaderWriterCircularBuffer& other) noexcept
 	{
+		std::swap(maxcap, other.maxcap);
 		std::swap(mask, other.mask);
 		std::swap(rawData, other.rawData);
 		std::swap(data, other.data);
