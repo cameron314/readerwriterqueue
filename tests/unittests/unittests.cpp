@@ -734,6 +734,53 @@ public:
 			ASSERT_OR_FAIL(!q.wait_enqueue_timed(1, 0));
 		}
 
+		// Element lifetimes
+		Foo::reset();
+		{
+			BlockingReaderWriterCircularBuffer<Foo> q(31);
+			{
+				Foo item;
+				for (int i = 0; i != 23 + 32; ++i) {
+					ASSERT_OR_FAIL(q.try_enqueue(Foo()));
+					ASSERT_OR_FAIL(q.try_dequeue(item));
+				}
+				ASSERT_OR_FAIL(Foo::destroy_count() == 23 + 32);
+				ASSERT_OR_FAIL(Foo::destroyed_in_order());
+			}
+			Foo::reset();
+
+			{
+				Foo item;
+				for (int i = 0; i != 10; ++i)
+					ASSERT_OR_FAIL(q.try_enqueue(Foo()));
+				ASSERT_OR_FAIL(q.size_approx() == 10);
+				ASSERT_OR_FAIL(Foo::destroy_count() == 0);
+				ASSERT_OR_FAIL(q.try_dequeue(item));
+				ASSERT_OR_FAIL(q.size_approx() == 9);
+				ASSERT_OR_FAIL(Foo::destroy_count() == 1);
+			}
+			ASSERT_OR_FAIL(Foo::destroy_count() == 2);
+			ASSERT_OR_FAIL(Foo::destroyed_in_order());
+
+			BlockingReaderWriterCircularBuffer<Foo> q2(std::move(q));
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(q2.size_approx() == 9);
+
+			BlockingReaderWriterCircularBuffer<Foo> q3(2);
+			q3 = std::move(q2);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(q2.size_approx() == 0);
+			ASSERT_OR_FAIL(q3.size_approx() == 9);
+
+			q = std::move(q2);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+			ASSERT_OR_FAIL(q2.size_approx() == 0);
+			ASSERT_OR_FAIL(q3.size_approx() == 9);
+			ASSERT_OR_FAIL(Foo::destroy_count() == 2);
+		}
+		ASSERT_OR_FAIL(Foo::destroy_count() == 11);
+		ASSERT_OR_FAIL(Foo::destroyed_in_order());
+
 		weak_atomic<int> result;
 		result = 1;
 
