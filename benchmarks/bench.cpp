@@ -8,6 +8,10 @@
 #define NO_FOLLY_SUPPORT
 #endif
 
+#if defined(_MSC_VER) && _MSC_VER < 1700
+#define NO_CIRCULAR_BUFFER_SUPPORT
+#endif
+
 #if !defined(__amd64__) && !defined(_M_X64) && !defined(__x86_64__) && !defined(_M_IX86) && !defined(__i386__)
 #define NO_SPSC_SUPPORT  // SPSC implementation is for x86 only
 #endif
@@ -17,6 +21,15 @@
 #include "ext/folly/ProducerConsumerQueue.h"    // Facebook's folly (GitHub)
 #endif
 #include "../readerwriterqueue.h"               // Mine
+#ifndef NO_CIRCULAR_BUFFER_SUPPORT
+#include "../readerwritercircularbuffer.h"      // Mine
+template<typename T>
+class BlockingReaderWriterCircularBufferAdapter : public moodycamel::BlockingReaderWriterCircularBuffer<T> {
+public:
+	BlockingReaderWriterCircularBufferAdapter(std::size_t capacity) : moodycamel::BlockingReaderWriterCircularBuffer<T>(capacity) { }
+	void enqueue(T const& x) { this->wait_enqueue(x); }
+};
+#endif
 #include "systemtime.h"
 #include "../tests/common/simplethread.h"
 
@@ -75,11 +88,13 @@ int main(int argc, char** argv)
 	const double FASTEST_PERCENT_CONSIDERED = 20;		// Consider only the fastest runs in the top 20%
 
 	double rwqResults[BENCHMARK_COUNT][TEST_COUNT];
+	double brwcbResults[BENCHMARK_COUNT][TEST_COUNT];
 	double spscResults[BENCHMARK_COUNT][TEST_COUNT];
 	double follyResults[BENCHMARK_COUNT][TEST_COUNT];
 	
 	// Also calculate a rough heuristic of "ops/s" (across all runs, not just fastest)
 	double rwqOps[BENCHMARK_COUNT][TEST_COUNT];
+	double brwcbOps[BENCHMARK_COUNT][TEST_COUNT];
 	double spscOps[BENCHMARK_COUNT][TEST_COUNT];
 	double follyOps[BENCHMARK_COUNT][TEST_COUNT];
 
@@ -94,6 +109,16 @@ int main(int argc, char** argv)
 		for (int i = 0; i < TEST_COUNT; ++i) {
 			rwqResults[benchmark][i] = runBenchmark<ReaderWriterQueue<int>>((BenchmarkType)benchmark, randSeeds[benchmark], rwqOps[benchmark][i]);
 		}
+#ifndef NO_CIRCULAR_BUFFER_SUPPORT
+		for (int i = 0; i < TEST_COUNT; ++i) {
+			brwcbResults[benchmark][i] = runBenchmark<BlockingReaderWriterCircularBufferAdapter<int>>((BenchmarkType)benchmark, randSeeds[benchmark], brwcbOps[benchmark][i]);
+		}
+#else
+		for (int i = 0; i < TEST_COUNT; ++i) {
+			brwcbResults[benchmark][i] = 0;
+			brwcbOps[benchmark][i] = 0;
+		}
+#endif
 #ifndef NO_SPSC_SUPPORT
 		for (int i = 0; i < TEST_COUNT; ++i) {
 			spscResults[benchmark][i] = runBenchmark<spsc_queue<int>>((BenchmarkType)benchmark, randSeeds[benchmark], spscOps[benchmark][i]);
@@ -119,6 +144,7 @@ int main(int argc, char** argv)
 	// Sort results
 	for (int benchmark = 0; benchmark < BENCHMARK_COUNT; ++benchmark) {
 		std::sort(&rwqResults[benchmark][0], &rwqResults[benchmark][0] + TEST_COUNT);
+		std::sort(&brwcbResults[benchmark][0], &brwcbResults[benchmark][0] + TEST_COUNT);
 		std::sort(&spscResults[benchmark][0], &spscResults[benchmark][0] + TEST_COUNT);
 		std::sort(&follyResults[benchmark][0], &follyResults[benchmark][0] + TEST_COUNT);
 	}
@@ -126,24 +152,29 @@ int main(int argc, char** argv)
 	// Display results
 	int max = std::max(2, (int)(TEST_COUNT * FASTEST_PERCENT_CONSIDERED / 100));
 	assert(max > 0);
+#ifdef NO_CIRCULAR_BUFFER_SUPPORT
+	std::cout << "Note: BRWCB queue not supported on this platform, discount its timings" << std::endl;
+#endif
 #ifdef NO_SPSC_SUPPORT
 	std::cout << "Note: SPSC queue not supported on this platform, discount its timings" << std::endl;
 #endif
 #ifdef NO_FOLLY_SUPPORT
 	std::cout << "Note: Folly queue not supported by this compiler, discount its timings" << std::endl;
 #endif
-	std::cout              << std::setw(BENCHMARK_NAME_MAX) << "         " << " |-----------  Min ------------|------------ Max ------------|------------ Avg ------------|\n";
-	std::cout << std::left << std::setw(BENCHMARK_NAME_MAX) << "Benchmark" << " |   RWQ   |  SPSC   |  Folly  |   RWQ   |  SPSC   |  Folly  |   RWQ   |  SPSC   |  Folly  | xSPSC | xFolly\n";
+	std::cout              << std::setw(BENCHMARK_NAME_MAX) << "         " << " |----------------  Min -----------------|----------------- Max -----------------|----------------- Avg -----------------|\n";
+	std::cout << std::left << std::setw(BENCHMARK_NAME_MAX) << "Benchmark" << " |   RWQ   |  BRWCB  |  SPSC   |  Folly  |   RWQ   |  BRWCB  |  SPSC   |  Folly  |   RWQ   |  BRWCB  |  SPSC   |  Folly  | xSPSC | xFolly\n";
 	std::cout.fill('-');
-	std::cout              << std::setw(BENCHMARK_NAME_MAX) << "---------" << "-+---------+---------+---------+---------+---------+---------+---------+---------+---------+-------+-------\n";
+	std::cout              << std::setw(BENCHMARK_NAME_MAX) << "---------" << "-+---------+---------+---------+---------+---------+---------+---------+---------+---------+---------+---------+---------+-------+-------\n";
 	std::cout.fill(' ');
-	double rwqOpsPerSec = 0, spscOpsPerSec = 0, follyOpsPerSec = 0;
+	double rwqOpsPerSec = 0, brwcbOpsPerSec = 0, spscOpsPerSec = 0, follyOpsPerSec = 0;
 	int opTimedBenchmarks = 0;
 	for (int benchmark = 0; benchmark < BENCHMARK_COUNT; ++benchmark) {
 		double rwqMin = rwqResults[benchmark][0], rwqMax = rwqResults[benchmark][max - 1];
+		double brwcbMin = brwcbResults[benchmark][0], brwcbMax = brwcbResults[benchmark][max - 1];
 		double spscMin = spscResults[benchmark][0], spscMax = spscResults[benchmark][max - 1];
 		double follyMin = follyResults[benchmark][0], follyMax = follyResults[benchmark][max - 1];
 		double rwqAvg = std::accumulate(&rwqResults[benchmark][0], &rwqResults[benchmark][0] + max, 0.0) / max;
+		double brwcbAvg = std::accumulate(&brwcbResults[benchmark][0], &brwcbResults[benchmark][0] + max, 0.0) / max;
 		double spscAvg = std::accumulate(&spscResults[benchmark][0], &spscResults[benchmark][0] + max, 0.0) / max;
 		double follyAvg = std::accumulate(&follyResults[benchmark][0], &follyResults[benchmark][0] + max, 0.0) / max;
 		double spscMult = rwqAvg < 0.00001 ? 0 : spscAvg / rwqAvg;
@@ -151,9 +182,11 @@ int main(int argc, char** argv)
 
 		if (rwqResults[benchmark][0] != -1) {
 			double rwqTotalAvg = std::accumulate(&rwqResults[benchmark][0], &rwqResults[benchmark][0] + TEST_COUNT, 0.0) / TEST_COUNT;
+			double brwcbTotalAvg = std::accumulate(&brwcbResults[benchmark][0], &brwcbResults[benchmark][0] + TEST_COUNT, 0.0) / TEST_COUNT;
 			double spscTotalAvg = std::accumulate(&spscResults[benchmark][0], &spscResults[benchmark][0] + TEST_COUNT, 0.0) / TEST_COUNT;
 			double follyTotalAvg = std::accumulate(&follyResults[benchmark][0], &follyResults[benchmark][0] + TEST_COUNT, 0.0) / TEST_COUNT;
 			rwqOpsPerSec += rwqTotalAvg == 0 ? 0 : std::accumulate(&rwqOps[benchmark][0], &rwqOps[benchmark][0] + TEST_COUNT, 0.0) / TEST_COUNT / rwqTotalAvg;
+			brwcbOpsPerSec += brwcbTotalAvg == 0 ? 0 : std::accumulate(&brwcbOps[benchmark][0], &brwcbOps[benchmark][0] + TEST_COUNT, 0.0) / TEST_COUNT / brwcbTotalAvg;
 			spscOpsPerSec += spscTotalAvg == 0 ? 0 : std::accumulate(&spscOps[benchmark][0], &spscOps[benchmark][0] + TEST_COUNT, 0.0) / TEST_COUNT / spscTotalAvg;
 			follyOpsPerSec += follyTotalAvg == 0 ? 0 : std::accumulate(&follyOps[benchmark][0], &follyOps[benchmark][0] + TEST_COUNT, 0.0) / TEST_COUNT / follyTotalAvg;
 			++opTimedBenchmarks;
@@ -162,12 +195,15 @@ int main(int argc, char** argv)
 		std::cout
 			<< std::left << std::setw(BENCHMARK_NAME_MAX) << benchmarkName((BenchmarkType)benchmark) << " | "
 			<< std::fixed << std::setprecision(4) << rwqMin << "s | "
+			<< std::fixed << std::setprecision(4) << brwcbMin << "s | "
 			<< std::fixed << std::setprecision(4) << spscMin << "s | "
 			<< std::fixed << std::setprecision(4) << follyMin << "s | "
 			<< std::fixed << std::setprecision(4) << rwqMax << "s | "
+			<< std::fixed << std::setprecision(4) << brwcbMax << "s | "
 			<< std::fixed << std::setprecision(4) << spscMax << "s | "
 			<< std::fixed << std::setprecision(4) << follyMax << "s | "
 			<< std::fixed << std::setprecision(4) << rwqAvg << "s | "
+			<< std::fixed << std::setprecision(4) << brwcbAvg << "s | "
 			<< std::fixed << std::setprecision(4) << spscAvg << "s | "
 			<< std::fixed << std::setprecision(4) << follyAvg << "s | "
 			<< std::fixed << std::setprecision(2) << spscMult << "x | "
@@ -177,14 +213,16 @@ int main(int argc, char** argv)
 	}
 
 	rwqOpsPerSec /= opTimedBenchmarks;
+	brwcbOpsPerSec /= opTimedBenchmarks;
 	spscOpsPerSec /= opTimedBenchmarks;
 	follyOpsPerSec /= opTimedBenchmarks;
 
 	std::cout
 		<< "\nAverage ops/s:\n"
-		<< "    ReaderWriterQueue: " << std::fixed << std::setprecision(2) << rwqOpsPerSec / 1000000 << " million\n"
-		<< "    SPSC queue:        " << std::fixed << std::setprecision(2) << spscOpsPerSec / 1000000 << " million\n"
-		<< "    Folly queue:       " << std::fixed << std::setprecision(2) << follyOpsPerSec / 1000000 << " million\n"
+		<< "    ReaderWriterQueue:                  " << std::fixed << std::setprecision(2) << rwqOpsPerSec / 1000000 << " million\n"
+		<< "    BlockingReaderWriterCircularBuffer: " << std::fixed << std::setprecision(2) << brwcbOpsPerSec / 1000000 << " million\n"
+		<< "    SPSC queue:                         " << std::fixed << std::setprecision(2) << spscOpsPerSec / 1000000 << " million\n"
+		<< "    Folly queue:                        " << std::fixed << std::setprecision(2) << follyOpsPerSec / 1000000 << " million\n"
 	;
 	std::cout << std::endl;
 
