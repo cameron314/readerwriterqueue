@@ -32,7 +32,7 @@ public:
 
 public:
 	explicit BlockingReaderWriterCircularBuffer(std::size_t capacity)
-		: maxcap(capacity),
+		: maxcap(capacity), mask(), rawData(), data(),
 		slots(new spsc_sema::LightweightSemaphore(static_cast<spsc_sema::LightweightSemaphore::ssize_t>(capacity))),
 		items(new spsc_sema::LightweightSemaphore(0)),
 		nextSlot(0), nextItem(0)
@@ -53,7 +53,8 @@ public:
 	BlockingReaderWriterCircularBuffer(BlockingReaderWriterCircularBuffer&& other)
 		: maxcap(0), mask(0), rawData(nullptr), data(nullptr),
 		slots(new spsc_sema::LightweightSemaphore(0)),
-		items(new spsc_sema::LightweightSemaphore(0))
+		items(new spsc_sema::LightweightSemaphore(0)),
+		nextSlot(), nextItem()
 	{
 		swap(other);
 	}

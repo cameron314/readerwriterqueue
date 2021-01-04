@@ -239,7 +239,7 @@ template<typename T>
 class weak_atomic
 {
 public:
-	AE_NO_TSAN weak_atomic() { }
+	AE_NO_TSAN weak_atomic() : value() { }
 #ifdef AE_VCPP
 #pragma warning(push)
 #pragma warning(disable: 4100)		// Get rid of (erroneous) 'unreferenced formal parameter' warning
@@ -389,7 +389,7 @@ namespace moodycamel
 		    Semaphore& operator=(const Semaphore& other);
 
 		public:
-		    AE_NO_TSAN Semaphore(int initialCount = 0)
+		    AE_NO_TSAN Semaphore(int initialCount = 0) : m_hSema()
 		    {
 		        assert(initialCount >= 0);
 		        const long maxLong = 0x7fffffff;
@@ -437,7 +437,7 @@ namespace moodycamel
 		    Semaphore& operator=(const Semaphore& other);
 
 		public:
-		    AE_NO_TSAN Semaphore(int initialCount = 0)
+		    AE_NO_TSAN Semaphore(int initialCount = 0) : m_sema()
 		    {
 		        assert(initialCount >= 0);
 		        kern_return_t rc = semaphore_create(mach_task_self(), &m_sema, SYNC_POLICY_FIFO, initialCount);
@@ -497,7 +497,7 @@ namespace moodycamel
 		    Semaphore& operator=(const Semaphore& other);
 
 		public:
-		    AE_NO_TSAN Semaphore(int initialCount = 0)
+		    AE_NO_TSAN Semaphore(int initialCount = 0) : m_sema()
 		    {
 		        assert(initialCount >= 0);
 		        int rc = sem_init(&m_sema, 0, static_cast<unsigned int>(initialCount));
@@ -626,7 +626,7 @@ namespace moodycamel
 		    }
 
 		public:
-		    AE_NO_TSAN LightweightSemaphore(ssize_t initialCount = 0) : m_count(initialCount)
+		    AE_NO_TSAN LightweightSemaphore(ssize_t initialCount = 0) : m_count(initialCount), m_sema()
 		    {
 		        assert(initialCount >= 0);
 		    }
