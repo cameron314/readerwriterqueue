@@ -7,12 +7,16 @@
 
 #pragma once
 
-#include <utility>
-#include <chrono>
-#include <memory>
-#include <cstdlib>
-#include <cstdint>
 #include <cassert>
+#include <chrono>
+#include <cstdint>
+#include <cstdlib>
+#include <memory>
+#include <utility>
+
+#if __cplusplus >= 201703L
+#include <new> // for std::launder
+#endif
 
 // Note that this implementation is fully modern C++11 (not compatible with old MSVC versions)
 // but we still include atomicops.h for its LightweightSemaphore implementation.
@@ -261,7 +265,13 @@ private:
 		std::size_t i = nextItem++;
 		T& element = reinterpret_cast<T*>(data)[i & mask];
 		item = std::move(element);
-		element.~T();
+
+#if __cplusplus >= 201703L
+		std::launder(&element)->~T();
+#else
+		element.~T(); // avoid UB on C++14 and prior
+#endif
+
 		slots->signal();
 	}
 
