@@ -7,6 +7,8 @@ you could use this queue completely from a single thread if you wish (but that w
 
 Note: If you need a general-purpose multi-producer, multi-consumer lock free queue, I have [one of those too][mpmc].
 
+This repository also includes a [circular-buffer SPSC queue][circular] which supports blocking on enqueue as well as dequeue.
+
 
 ## Features
 
@@ -25,7 +27,7 @@ Note: If you need a general-purpose multi-producer, multi-consumer lock free que
 
 ## Use
 
-Simply drop the readerwriterqueue.h and atomicops.h files into your source code and include them :-)
+Simply drop the readerwriterqueue.h (or readerwritercircularbuffer.h) and atomicops.h files into your source code and include them :-)
 A modern compiler is required (MSVC2010+, GCC 4.7+, ICC 13+, or any C++11 compliant compiler should work).
 
 Note: If you're using GCC, you really do need GCC 4.7 or above -- [4.6 has a bug][gcc46bug] that prevents the atomic fence primitives
@@ -94,6 +96,25 @@ means care must be taken to only call `wait_dequeue` if you're sure another elem
 will come along eventually, or if the queue has a static lifetime. This is because
 destroying the queue while a thread is waiting on it will invoke undefined behaviour.
 
+The blocking circular buffer has a fixed number of slots, but is otherwise quite similar to
+use:
+
+```cpp
+BlockingReaderWriterCircularBuffer<int> q(1024);  // pass initial capacity
+
+q.try_enqueue(1);
+int number;
+q.try_dequeue(number);
+assert(number == 1);
+
+q.wait_enqueue(123);
+q.wait_dequeue(number);
+assert(number == 123);
+
+q.wait_dequeue_timed(number, std::chrono::milliseconds(10));
+```
+
+
 ## CMake installation
 As an alternative to including the source files in your project directly,
 you can use CMake to install the library in your system's include directory:
@@ -118,14 +139,6 @@ includes all modern processors (e.g. x86/x86-64, ARM, and PowerPC). *Not* for us
 Note that it's only been tested on x86(-64); if someone has access to other processors I'd love to run some tests on
 anything that's not x86-based.
 
-Finally, I am not an expert. This is my first foray into lock-free programming, and though I'm confident in the code,
-it's possible that there are bugs despite the effort I put into designing and testing this data structure.
-
-Use this code at your own risk; in particular, lock-free programming is a patent minefield, and this code may very
-well violate a pending patent (I haven't looked). It's worth noting that I came up with this algorithm and
-implementation from scratch, independent of any existing lock-free queues.
-
-
 ## More info
 
 See the [LICENSE.md][license] file for the license (simplified BSD).
@@ -139,3 +152,4 @@ about lock-free programming.
 [benchmarks]: http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++#benchmarks
 [gcc46bug]: http://stackoverflow.com/questions/16429669/stdatomic-thread-fence-has-undefined-reference
 [mpmc]: https://github.com/cameron314/concurrentqueue
+[circular]: readerwritercircularbuffer.h
