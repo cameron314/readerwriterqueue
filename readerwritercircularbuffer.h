@@ -33,7 +33,7 @@ public:
 public:
 	explicit BlockingReaderWriterCircularBuffer(std::size_t capacity)
 		: maxcap(capacity), mask(), rawData(), data(),
-		slots(new spsc_sema::LightweightSemaphore(static_cast<spsc_sema::LightweightSemaphore::ssize_t>(capacity))),
+		slots_(new spsc_sema::LightweightSemaphore(static_cast<spsc_sema::LightweightSemaphore::ssize_t>(capacity))),
 		items(new spsc_sema::LightweightSemaphore(0)),
 		nextSlot(0), nextItem(0)
 	{
@@ -52,7 +52,7 @@ public:
 
 	BlockingReaderWriterCircularBuffer(BlockingReaderWriterCircularBuffer&& other)
 		: maxcap(0), mask(0), rawData(nullptr), data(nullptr),
-		slots(new spsc_sema::LightweightSemaphore(0)),
+		slots_(new spsc_sema::LightweightSemaphore(0)),
 		items(new spsc_sema::LightweightSemaphore(0)),
 		nextSlot(), nextItem()
 	{
@@ -86,7 +86,7 @@ public:
 		std::swap(mask, other.mask);
 		std::swap(rawData, other.rawData);
 		std::swap(data, other.data);
-		std::swap(slots, other.slots);
+		std::swap(slots_, other.slots_);
 		std::swap(items, other.items);
 		std::swap(nextSlot, other.nextSlot);
 		std::swap(nextItem, other.nextItem);
@@ -98,7 +98,7 @@ public:
 	// No exception guarantee (state will be corrupted) if constructor of T throws.
 	bool try_enqueue(T const& item)
 	{
-		if (!slots->tryWait())
+		if (!slots_->tryWait())
 			return false;
 		inner_enqueue(item);
 		return true;
@@ -110,7 +110,7 @@ public:
 	// No exception guarantee (state will be corrupted) if constructor of T throws.
 	bool try_enqueue(T&& item)
 	{
-		if (!slots->tryWait())
+		if (!slots_->tryWait())
 			return false;
 		inner_enqueue(std::move(item));
 		return true;
@@ -122,7 +122,7 @@ public:
 	// No exception guarantee (state will be corrupted) if constructor of T throws.
 	void wait_enqueue(T const& item)
 	{
-		while (!slots->wait());
+		while (!slots_->wait());
 		inner_enqueue(item);
 	}
 
@@ -132,7 +132,7 @@ public:
 	// No exception guarantee (state will be corrupted) if constructor of T throws.
 	void wait_enqueue(T&& item)
 	{
-		while (!slots->wait());
+		while (!slots_->wait());
 		inner_enqueue(std::move(item));
 	}
 
@@ -143,7 +143,7 @@ public:
 	// No exception guarantee (state will be corrupted) if constructor of T throws.
 	bool wait_enqueue_timed(T const& item, std::int64_t timeout_usecs)
 	{
-		if (!slots->wait(timeout_usecs))
+		if (!slots_->wait(timeout_usecs))
 			return false;
 		inner_enqueue(item);
 		return true;
@@ -156,7 +156,7 @@ public:
 	// No exception guarantee (state will be corrupted) if constructor of T throws.
 	bool wait_enqueue_timed(T&& item, std::int64_t timeout_usecs)
 	{
-		if (!slots->wait(timeout_usecs))
+		if (!slots_->wait(timeout_usecs))
 			return false;
 		inner_enqueue(std::move(item));
 		return true;
@@ -262,7 +262,7 @@ private:
 		T& element = reinterpret_cast<T*>(data)[i & mask];
 		item = std::move(element);
 		element.~T();
-		slots->signal();
+		slots_->signal();
 	}
 
 	template<typename U>
@@ -277,8 +277,8 @@ private:
 	std::size_t mask;                             // circular buffer capacity mask (for cheap modulo)
 	char* rawData;                                // raw circular buffer memory
 	char* data;                                   // circular buffer memory aligned to element alignment
-	std::unique_ptr<spsc_sema::LightweightSemaphore> slots;  // number of slots currently free
-	std::unique_ptr<spsc_sema::LightweightSemaphore> items;  // number of elements currently enqueued
+	std::unique_ptr<spsc_sema::LightweightSemaphore> slots_;  // number of slots currently free (named with underscore to accommodate Qt's 'slots' macro)
+	std::unique_ptr<spsc_sema::LightweightSemaphore> items;   // number of elements currently enqueued
 	char cachelineFiller0[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(char*) * 2 - sizeof(std::size_t) * 2 - sizeof(std::unique_ptr<spsc_sema::LightweightSemaphore>) * 2];
 	std::size_t nextSlot;                         // index of next free slot to enqueue into
 	char cachelineFiller1[MOODYCAMEL_CACHE_LINE_SIZE - sizeof(std::size_t)];
