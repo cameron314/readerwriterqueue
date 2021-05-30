@@ -43,15 +43,26 @@
 // AE_UNUSED
 #define AE_UNUSED(x) ((void)x)
 
-// AE_NO_TSAN
+// AE_NO_TSAN/AE_TSAN_ANNOTATE_*
 #if defined(__has_feature)
 #if __has_feature(thread_sanitizer)
+#if __cplusplus >= 201703L  // inline variables require C++17
+namespace moodycamel { inline int ae_tsan_global; }
+#define AE_TSAN_ANNOTATE_RELEASE() AnnotateHappensBefore(__FILE__, __LINE__, (void *)(&::moodycamel::ae_tsan_global))
+#define AE_TSAN_ANNOTATE_ACQUIRE() AnnotateHappensAfter(__FILE__, __LINE__, (void *)(&::moodycamel::ae_tsan_global))
+extern "C" void AnnotateHappensBefore(const char*, int, void*);
+extern "C" void AnnotateHappensAfter(const char*, int, void*);
+#else  // when we can't work with tsan, attempt to disable its warnings
 #define AE_NO_TSAN __attribute__((no_sanitize("thread")))
-#else
+#endif
+#endif
+#endif
+#ifndef AE_NO_TSAN
 #define AE_NO_TSAN
 #endif
-#else
-#define AE_NO_TSAN
+#ifndef AE_TSAN_ANNOTATE_RELEASE
+#define AE_TSAN_ANNOTATE_RELEASE()
+#define AE_TSAN_ANNOTATE_ACQUIRE()
 #endif
 
 
@@ -208,10 +219,10 @@ AE_FORCEINLINE void fence(memory_order order) AE_NO_TSAN
 {
 	switch (order) {
 		case memory_order_relaxed: break;
-		case memory_order_acquire: std::atomic_thread_fence(std::memory_order_acquire); break;
-		case memory_order_release: std::atomic_thread_fence(std::memory_order_release); break;
-		case memory_order_acq_rel: std::atomic_thread_fence(std::memory_order_acq_rel); break;
-		case memory_order_seq_cst: std::atomic_thread_fence(std::memory_order_seq_cst); break;
+		case memory_order_acquire: AE_TSAN_ANNOTATE_ACQUIRE(); std::atomic_thread_fence(std::memory_order_acquire); break;
+		case memory_order_release: AE_TSAN_ANNOTATE_RELEASE(); std::atomic_thread_fence(std::memory_order_release); break;
+		case memory_order_acq_rel: AE_TSAN_ANNOTATE_ACQUIRE(); AE_TSAN_ANNOTATE_RELEASE(); std::atomic_thread_fence(std::memory_order_acq_rel); break;
+		case memory_order_seq_cst: AE_TSAN_ANNOTATE_ACQUIRE(); AE_TSAN_ANNOTATE_RELEASE(); std::atomic_thread_fence(std::memory_order_seq_cst); break;
 		default: assert(false);
 	}
 }
