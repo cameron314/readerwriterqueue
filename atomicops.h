@@ -363,6 +363,10 @@ extern "C" {
 #include <mach/mach.h>
 #elif defined(__unix__)
 #include <semaphore.h>
+#elif defined(FREERTOS)
+#include <FreeRTOS.h>
+#include <semphr.h>
+#include <task.h>
 #endif
 
 namespace moodycamel
@@ -576,6 +580,61 @@ namespace moodycamel
 		            while (sem_post(&m_sema) == -1);
 		        }
 		    }
+		};
+#elif defined(FREERTOS)
+		//---------------------------------------------------------
+		// Semaphore (FreeRTOS)
+		//---------------------------------------------------------
+		class Semaphore
+		{
+		private:
+			SemaphoreHandle_t m_sema;
+
+			Semaphore(const Semaphore& other);
+			Semaphore& operator=(const Semaphore& other);
+
+		public:
+			AE_NO_TSAN Semaphore(int initialCount = 0) : m_sema()
+			{
+				assert(initialCount >= 0);
+				m_sema = xSemaphoreCreateCounting(static_cast<UBaseType_t>(~0ull), static_cast<UBaseType_t>(initialCount));
+				assert(m_sema);
+			}
+
+			AE_NO_TSAN ~Semaphore()
+			{
+				vSemaphoreDelete(m_sema);
+			}
+
+			bool wait() AE_NO_TSAN
+			{
+				return xSemaphoreTake(m_sema, portMAX_DELAY) == pdTRUE;
+			}
+
+			bool try_wait() AE_NO_TSAN
+			{
+				return xSemaphoreTake(m_sema, 0) == pdTRUE;
+			}
+
+			bool timed_wait(std::uint64_t usecs) AE_NO_TSAN
+			{
+				std::uint64_t msecs = usecs / 1000;
+				TickType_t ticks = static_cast<TickType_t>(msecs / portTICK_PERIOD_MS);
+				return xSemaphoreTake(m_sema, ticks) == pdTRUE;
+			}
+
+			void signal() AE_NO_TSAN
+			{
+				BaseType_t rc = xSemaphoreGive(m_sema);
+				assert(rc == pdTRUE);
+				AE_UNUSED(rc);
+			}
+
+			void signal(int count) AE_NO_TSAN
+			{
+				while (count-- > 0)
+					signal();
+			}
 		};
 #else
 #error Unsupported platform! (No semaphore wrapper available)
