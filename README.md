@@ -116,8 +116,8 @@ q.wait_dequeue_timed(number, std::chrono::milliseconds(10));
 ```
 
 
-# CMake
-## Using targets in your project
+## CMake
+### Using targets in your project
 Using this project as a part of an existing CMake project is easy.
 
 In your CMakeLists.txt:
@@ -137,16 +137,16 @@ target_link_libraries(my_target PUBLIC readerwriterqueue)
 ```
 
 In main.cpp:
-```
+```cpp
 #include <readerwriterqueue.h>
 
-int main(void)
+int main()
 {
     moodycamel::ReaderWriterQueue<int> q(100);
 }
 ```
 
-## Installing into system directories
+### Installing into system directories
 As an alternative to including the source files in your project directly,
 you can use CMake to install the library in your system's include directory:
 
