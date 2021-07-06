@@ -1,3 +1,4 @@
+
 # A single-producer, single-consumer lock-free queue for C++
 
 This mini-repository has my very own implementation of a lock-free queue (that I designed from scratch) for C++.
@@ -115,7 +116,37 @@ q.wait_dequeue_timed(number, std::chrono::milliseconds(10));
 ```
 
 
-## CMake installation
+## CMake
+### Using targets in your project
+Using this project as a part of an existing CMake project is easy.
+
+In your CMakeLists.txt:
+```
+include(FetchContent)
+
+FetchContent_Declare(
+  readerwriterqueue
+  GIT_REPOSITORY    https://github.com/cameron314/readerwriterqueue
+  GIT_TAG           master
+)
+
+FetchContent_MakeAvailable(readerwriterqueue)
+
+add_library(my_target main.cpp)
+target_link_libraries(my_target PUBLIC readerwriterqueue)
+```
+
+In main.cpp:
+```cpp
+#include <readerwriterqueue.h>
+
+int main()
+{
+    moodycamel::ReaderWriterQueue<int> q(100);
+}
+```
+
+### Installing into system directories
 As an alternative to including the source files in your project directly,
 you can use CMake to install the library in your system's include directory:
 
