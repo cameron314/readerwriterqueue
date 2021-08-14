@@ -613,6 +613,10 @@ namespace moodycamel
 
 			bool try_wait() AE_NO_TSAN
 			{
+				// Note: In an ISR context, if this causes a task to unblock,
+				// the caller won't know about it
+				if (xPortIsInsideInterrupt())
+					return xSemaphoreTakeFromISR(m_sema, NULL) == pdTRUE;
 				return xSemaphoreTake(m_sema, 0) == pdTRUE;
 			}
 
@@ -620,12 +624,20 @@ namespace moodycamel
 			{
 				std::uint64_t msecs = usecs / 1000;
 				TickType_t ticks = static_cast<TickType_t>(msecs / portTICK_PERIOD_MS);
+				if (ticks == 0)
+					return try_wait();
 				return xSemaphoreTake(m_sema, ticks) == pdTRUE;
 			}
 
 			void signal() AE_NO_TSAN
 			{
-				BaseType_t rc = xSemaphoreGive(m_sema);
+				// Note: In an ISR context, if this causes a task to unblock,
+				// the caller won't know about it
+				BaseType_t rc;
+				if (xPortIsInsideInterrupt())
+					rc = xSemaphoreGiveFromISR(m_sema, NULL);
+				else
+					rc = xSemaphoreGive(m_sema);
 				assert(rc == pdTRUE);
 				AE_UNUSED(rc);
 			}
