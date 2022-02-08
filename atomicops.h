@@ -363,6 +363,8 @@ extern "C" {
 #include <mach/mach.h>
 #elif defined(__unix__)
 #include <semaphore.h>
+#elif defined(__HAIKU__)
+#include <kernel/OS.h>
 #elif defined(FREERTOS)
 #include <FreeRTOS.h>
 #include <semphr.h>
@@ -579,6 +581,64 @@ namespace moodycamel
 		        {
 		            while (sem_post(&m_sema) == -1);
 		        }
+		    }
+		};
+#elif defined(__HAIKU__)
+		//---------------------------------------------------------
+		// Semaphore (Haiku)
+		//---------------------------------------------------------
+		class Semaphore
+		{
+		private:
+		    sem_id m_sema;
+
+		    Semaphore(const Semaphore& other);
+		    Semaphore& operator=(const Semaphore& other);
+
+		public:
+		    AE_NO_TSAN Semaphore(int initialCount = 0) : m_sema()
+		    {
+		        assert(initialCount >= 0);
+		        m_sema = create_sem(initialCount, "");
+		        assert(m_sema >= B_OK);
+		    }
+
+		    AE_NO_TSAN ~Semaphore()
+		    {
+		        delete_sem(m_sema);
+		    }
+
+		    bool wait() AE_NO_TSAN
+		    {
+		        // accquire the semaphore
+		        status_t rc;
+		        rc = acquire_sem(m_sema);
+		        return rc == B_NO_ERROR;
+		    }
+
+			bool try_wait() AE_NO_TSAN
+			{
+				// accquire the semaphore
+		        status_t rc;
+		        rc = acquire_sem_etc(m_sema, 1, B_RELATIVE_TIMEOUT, 0);
+		        return rc == B_NO_ERROR;
+			}
+
+			bool timed_wait(std::uint64_t usecs) AE_NO_TSAN
+			{
+		        status_t rc;
+		        rc = acquire_sem_etc(m_sema, 1, B_RELATIVE_TIMEOUT, (bigtime_t) usecs);
+		        return rc == B_NO_ERROR;
+			}
+
+		    void signal() AE_NO_TSAN
+		    {
+		        while (release_sem(m_sema) != B_NO_ERROR);
+		    }
+
+		    void signal(int count) AE_NO_TSAN
+		    {
+		        release_sem_etc(m_sema, count, 0);
 		    }
 		};
 #elif defined(FREERTOS)
