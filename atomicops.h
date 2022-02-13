@@ -633,7 +633,7 @@ namespace moodycamel
 
 		    void signal() AE_NO_TSAN
 		    {
-		        while (release_sem(m_sema) != B_NO_ERROR);
+		        release_sem(m_sema);
 		    }
 
 		    void signal(int count) AE_NO_TSAN
