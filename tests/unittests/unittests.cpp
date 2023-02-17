@@ -704,9 +704,11 @@ public:
 			for (int iteration = 0; iteration != 128; ++iteration) {  // check there's no problem with mismatch between nominal and allocated capacity
 				ASSERT_OR_FAIL(q.max_capacity() == 65);
 				ASSERT_OR_FAIL(q.size_approx() == 0);
+				ASSERT_OR_FAIL(!q.try_pop());
 				ASSERT_OR_FAIL(q.try_enqueue(0));
 				ASSERT_OR_FAIL(q.max_capacity() == 65);
 				ASSERT_OR_FAIL(q.size_approx() == 1);
+				ASSERT_OR_FAIL(*q.peek() == 0);
 				for (int i = 1; i != 65; ++i)
 					q.wait_enqueue(i);
 				ASSERT_OR_FAIL(q.size_approx() == 65);
@@ -744,6 +746,20 @@ public:
 					ASSERT_OR_FAIL(q.try_enqueue(Foo()));
 					ASSERT_OR_FAIL(q.try_dequeue(item));
 				}
+				ASSERT_OR_FAIL(Foo::destroy_count() == 23 + 32);
+				ASSERT_OR_FAIL(Foo::destroyed_in_order());
+			}
+			Foo::reset();
+
+			{
+				Foo item;
+				for (int i = 0; i != 23 + 32; ++i) {
+					ASSERT_OR_FAIL(q.try_enqueue(Foo()));
+					item = std::move(*q.peek());
+					ASSERT_OR_FAIL(q.try_pop());
+				}
+				ASSERT_OR_FAIL(!q.peek());
+				ASSERT_OR_FAIL(!q.try_pop());
 				ASSERT_OR_FAIL(Foo::destroy_count() == 23 + 32);
 				ASSERT_OR_FAIL(Foo::destroyed_in_order());
 			}
@@ -790,7 +806,14 @@ public:
 			SimpleThread reader([&]() {
 				int item;
 				for (int i = 0; i != 1000000; ++i) {
-					q.wait_dequeue(item);
+					if (q.peek()) {
+						item = *q.peek();
+						if (!q.try_pop())
+							result = 0;
+					}
+					else {
+						q.wait_dequeue(item);
+					}
 					if (item != i)
 						result = 0;
 				}

@@ -232,6 +232,27 @@ public:
 		return wait_dequeue_timed(item, std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
 	}
 
+	// Returns a pointer to the next element in the queue (the one that would
+	// be removed next by a call to `try_dequeue` or `try_pop`). If the queue
+	// appears empty at the time the method is called, returns nullptr instead.
+	// Thread-safe when called by consumer thread.
+	inline T* peek()
+	{
+		if (!items->availableApprox())
+			return nullptr;
+		return inner_peek();
+	}
+
+	// Pops the next element from the queue, if there is one.
+	// Thread-safe when called by consumer thread.
+	inline bool try_pop()
+	{
+		if (!items->tryWait())
+			return false;
+		inner_pop();
+		return true;
+	}
+
 	// Returns a (possibly outdated) snapshot of the total number of elements currently in the buffer.
 	// Thread-safe.
 	inline std::size_t size_approx() const
@@ -262,6 +283,18 @@ private:
 		T& element = reinterpret_cast<T*>(data)[i & mask];
 		item = std::move(element);
 		element.~T();
+		slots_->signal();
+	}
+
+	T* inner_peek()
+	{
+		return reinterpret_cast<T*>(data) + (nextItem & mask);
+	}
+
+	void inner_pop()
+	{
+		std::size_t i = nextItem++;
+		reinterpret_cast<T*>(data)[i & mask].~T();
 		slots_->signal();
 	}
 
