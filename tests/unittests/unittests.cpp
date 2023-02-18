@@ -806,9 +806,10 @@ public:
 			SimpleThread reader([&]() {
 				int item;
 				for (int i = 0; i != 1000000; ++i) {
-					if (q.peek()) {
-						item = *q.peek();
-						if (!q.try_pop())
+					int* peeked = q.peek();
+					if (peeked) {
+						item = *peeked;
+						if (peeked != q.peek() || !q.try_pop())
 							result = 0;
 					}
 					else {
