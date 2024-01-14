@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
-set(CMAKE_CXX_STANDARD 11)  # don't need to specifiy
+set(CMAKE_CXX_STANDARD 11)  # don't need to specify manually per target anymore.
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
