@@ -1,0 +1,5 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/readerwriterqueueTargets.cmake")
+# normally find_dependency macro dependencies, but there are none here.
+check_required_components(readerwriterqueue)
