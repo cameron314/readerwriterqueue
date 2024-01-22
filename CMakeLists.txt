@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.9)
+
 set(CMAKE_CXX_STANDARD 11)  # don't need to specify manually per target anymore.
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(GNUInstallDirs)
-
 project(readerwriterqueue)
+include(GNUInstallDirs)
 
 add_library(readerwriterqueue INTERFACE)
 
@@ -142,7 +142,8 @@ if(${MOODYCAMEL_READERWRITERQUEUE_ENABLE_TESTS})
     )
 
     target_compile_definitions(unittests PRIVATE
-            $<$<OR:$<CONFIG:RelWithDebInfo>, $<CONFIG:Debug>>:-DNDEBUG>
+            $<$<CONFIG:RelWithDebInfo>:-DNDEBUG>
+            $<$<CONFIG:Release>:-DNDEBUG>
     )
     target_link_options(unittests
             PRIVATE
