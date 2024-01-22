@@ -109,11 +109,11 @@ if(${MOODYCAMEL_READERWRITERQUEUE_ENABLE_TESTS})
 
             # RelWitHDebInfo was the only configuration supported initially.
             $<$<CONFIG:RelWithDebInfo>:
-            $<$<CXX_COMPILER_ID:Clang>: ${MOODYCAMEL_CLANG_EXTRA_COMPILE_FLAGS} -DNDEBUG -O3 -g>
-            $<$<CXX_COMPILER_ID:GNU>:  ${MOODYCAMEL_GCC_EXTRA_COMPILE_FLAGS} -DNDEBUG -O3 -g>
+            $<$<CXX_COMPILER_ID:Clang>: ${MOODYCAMEL_CLANG_EXTRA_COMPILE_FLAGS}  -O3 -g>
+            $<$<CXX_COMPILER_ID:GNU>:  ${MOODYCAMEL_GCC_EXTRA_COMPILE_FLAGS}  -O3 -g>
             #            /W4 is similar to -Wall, next are similar to -sign-conversion, /permissive- is similar to -Wpedantic.
             #            /02 is optimize for speed, /DEBUG does the equivalent thing as -g
-            $<$<CXX_COMPILER_ID:MSVC>:${MOODYCAMEL_MSVC_EXTRA_COMPILE_FLAGS} -DNDEBUG /O2 /DEBUG>
+            $<$<CXX_COMPILER_ID:MSVC>:${MOODYCAMEL_MSVC_EXTRA_COMPILE_FLAGS}  /O2 /DEBUG>
 
 
             >
@@ -128,15 +128,21 @@ if(${MOODYCAMEL_READERWRITERQUEUE_ENABLE_TESTS})
 
             # RelWitHDebInfo was the only configuration supported initially.
             $<$<CONFIG:Debug>:
-            $<$<CXX_COMPILER_ID:Clang>: ${MOODYCAMEL_CLANG_EXTRA_COMPILE_FLAGS} -DNDEBUG -Og -g>
-            $<$<CXX_COMPILER_ID:GNU>:  ${MOODYCAMEL_GCC_EXTRA_COMPILE_FLAGS} -DNDEBUG -Og -g>
+            $<$<CXX_COMPILER_ID:Clang>: ${MOODYCAMEL_CLANG_EXTRA_COMPILE_FLAGS} -Og -g>
+            $<$<CXX_COMPILER_ID:GNU>:  ${MOODYCAMEL_GCC_EXTRA_COMPILE_FLAGS}  -Og -g>
             #            /W4 is similar to -Wall, next are similar to -sign-conversion, /permissive- is similar to -Wpedantic.
             #            /02 is optimize for speed, /DEBUG does the equivalent thing as -g
-            $<$<CXX_COMPILER_ID:MSVC>: ${MOODYCAMEL_MSVC_EXTRA_COMPILE_FLAGS} -DNDEBUG /Od>
+            $<$<CXX_COMPILER_ID:MSVC>: ${MOODYCAMEL_MSVC_EXTRA_COMPILE_FLAGS}  /Od>
             >)
+
+
     target_compile_options(unittests
             PRIVATE
             ${MOODYCAMEL_EXTRA_CONFIG_COMPILE_FLAGS}
+    )
+
+    target_compile_definitions(unittests PRIVATE
+            $<$<OR:$<CONFIG:RelWithDebInfo>, $<CONFIG:Debug>>:-DNDEBUG>
     )
     target_link_options(unittests
             PRIVATE
