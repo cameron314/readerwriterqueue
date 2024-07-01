@@ -44,8 +44,18 @@
 #define AE_UNUSED(x) ((void)x)
 
 // AE_NO_TSAN/AE_TSAN_ANNOTATE_*
+// For GCC
+#if defined(__SANITIZE_THREAD__)
+#define _TSAN_IS_ENABLED 1
+#endif
+// For clang
 #if defined(__has_feature)
 #if __has_feature(thread_sanitizer)
+#define _TSAN_IS_ENABLED 1
+#endif
+#endif
+
+#if _TSAN_IS_ENABLED
 #if __cplusplus >= 201703L  // inline variables require C++17
 namespace moodycamel { inline int ae_tsan_global; }
 #define AE_TSAN_ANNOTATE_RELEASE() AnnotateHappensBefore(__FILE__, __LINE__, (void *)(&::moodycamel::ae_tsan_global))
@@ -56,10 +66,11 @@ extern "C" void AnnotateHappensAfter(const char*, int, void*);
 #define AE_NO_TSAN __attribute__((no_sanitize("thread")))
 #endif
 #endif
-#endif
+
 #ifndef AE_NO_TSAN
 #define AE_NO_TSAN
 #endif
+
 #ifndef AE_TSAN_ANNOTATE_RELEASE
 #define AE_TSAN_ANNOTATE_RELEASE()
 #define AE_TSAN_ANNOTATE_ACQUIRE()
