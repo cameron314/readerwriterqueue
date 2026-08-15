@@ -1,4 +1,4 @@
-// ©2013-2020 Cameron Desrochers.
+﻿// ©2013-2020 Cameron Desrochers.
 // Distributed under the simplified BSD license (see the license file that
 // should have come with this header).
 
@@ -619,6 +619,13 @@ private:
 				newBlock->tail = newBlock->localTail = 1;
 
 				newBlock->next = tailBlock_->next.load();
+
+				// Publish all writes to *newBlock before it becomes reachable via either
+				// tailBlock_->next (walked by size_approx() and other chain traversals)
+				// or tailBlock itself (used by try_dequeue). Without this fence, on
+				// weakly-ordered architectures (e.g. AArch64) a reader could observe the
+				// updated `next` pointer before seeing newBlock's initialized fields.
+				fence(memory_order_release);
 				tailBlock_->next = newBlock;
 
 				// Might be possible for the dequeue thread to see the new tailBlock->next
@@ -627,7 +634,6 @@ private:
 				// case where it could try to read the next is if it's already at the tailBlock,
 				// and it won't advance past tailBlock in any circumstance).
 
-				fence(memory_order_release);
 				tailBlock = newBlock;
 			}
 			else if (canAlloc == CannotAlloc) {
