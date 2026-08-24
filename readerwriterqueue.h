@@ -620,20 +620,14 @@ private:
 
 				newBlock->next = tailBlock_->next.load();
 
-				// Publish all writes to *newBlock before it becomes reachable via either
-				// tailBlock_->next (walked by size_approx() and other chain traversals)
-				// or tailBlock itself (used by try_dequeue). Without this fence, on
-				// weakly-ordered architectures (e.g. AArch64) a reader could observe the
-				// updated `next` pointer before seeing newBlock's initialized fields.
+				// Publish all writes to *newBlock before it becomes reachable via
+				// tailBlock_->next.
 				fence(memory_order_release);
 				tailBlock_->next = newBlock;
 
-				// Might be possible for the dequeue thread to see the new tailBlock->next
-				// *without* seeing the new tailBlock value, but this is OK since it can't
-				// advance to the next block until tailBlock is set anyway (because the only
-				// case where it could try to read the next is if it's already at the tailBlock,
-				// and it won't advance past tailBlock in any circumstance).
-
+				// Ensure that readers observing the new tailBlock also observe the
+				// preceding publication of tailBlock_->next.
+				fence(memory_order_release);
 				tailBlock = newBlock;
 			}
 			else if (canAlloc == CannotAlloc) {
