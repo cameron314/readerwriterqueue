@@ -19,7 +19,11 @@
 #include "atomicops.h"
 
 #ifndef MOODYCAMEL_CACHE_LINE_SIZE
-#define MOODYCAMEL_CACHE_LINE_SIZE 64
+#if defined(__powerpc__) || defined(__powerpc64__) || defined(__ppc64__) || defined (__PPC64__) || defined(_ARCH_PPC64) || defined(_M_PPC)
+	#define MOODYCAMEL_CACHE_LINE_SIZE 128
+#else
+	#define MOODYCAMEL_CACHE_LINE_SIZE 64
+#endif
 #endif
 
 namespace moodycamel {
