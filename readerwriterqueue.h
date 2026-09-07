@@ -1,4 +1,4 @@
-// ©2013-2020 Cameron Desrochers.
+﻿// ©2013-2020 Cameron Desrochers.
 // Distributed under the simplified BSD license (see the license file that
 // should have come with this header).
 
@@ -619,14 +619,14 @@ private:
 				newBlock->tail = newBlock->localTail = 1;
 
 				newBlock->next = tailBlock_->next.load();
+
+				// Publish all writes to *newBlock before it becomes reachable via
+				// tailBlock_->next.
+				fence(memory_order_release);
 				tailBlock_->next = newBlock;
 
-				// Might be possible for the dequeue thread to see the new tailBlock->next
-				// *without* seeing the new tailBlock value, but this is OK since it can't
-				// advance to the next block until tailBlock is set anyway (because the only
-				// case where it could try to read the next is if it's already at the tailBlock,
-				// and it won't advance past tailBlock in any circumstance).
-
+				// Ensure that readers observing the new tailBlock also observe the
+				// preceding publication of tailBlock_->next.
 				fence(memory_order_release);
 				tailBlock = newBlock;
 			}
