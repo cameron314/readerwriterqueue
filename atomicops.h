@@ -675,7 +675,7 @@ namespace moodycamel
 		private:
 		    weak_atomic<ssize_t> m_count;
 		    Semaphore m_sema;
-		    int m_spinCount;
+		    const int m_spinCount;
 
 		    bool waitWithPartialSpinning(std::int64_t timeout_usecs = -1) AE_NO_TSAN
 		    {
