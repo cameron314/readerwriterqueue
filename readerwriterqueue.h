@@ -766,8 +766,12 @@ private:
 	typedef ::moodycamel::ReaderWriterQueue<T, MAX_BLOCK_SIZE> ReaderWriterQueue;
 	
 public:
-	explicit BlockingReaderWriterQueue(size_t size = 15) AE_NO_TSAN
-		: inner(size), sema(new spsc_sema::LightweightSemaphore())
+	// spinCount is the number of times wait_dequeue / wait_dequeue_timed spin
+	// before blocking on the OS semaphore. It is fixed for the lifetime of the
+	// queue; pass 0 to block immediately.
+	explicit BlockingReaderWriterQueue(size_t size = 15,
+		int spinCount = spsc_sema::LightweightSemaphore::DEFAULT_SPIN_COUNT) AE_NO_TSAN
+		: inner(size), sema(new spsc_sema::LightweightSemaphore(0, spinCount))
 	{ }
 
 	BlockingReaderWriterQueue(BlockingReaderWriterQueue&& other) AE_NO_TSAN

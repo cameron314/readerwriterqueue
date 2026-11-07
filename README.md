@@ -97,6 +97,16 @@ means care must be taken to only call `wait_dequeue` if you're sure another elem
 will come along eventually, or if the queue has a static lifetime. This is because
 destroying the queue while a thread is waiting on it will invoke undefined behaviour.
 
+The blocking queue spins a number of times before blocking at the operating system
+level. The default is 1024 spins, which works well on desktop CPUs but can
+waste CPU on slow or power-constrained devices when the queue is usually empty and
+timeouts are short. Pass a spin count as the second constructor argument to tune
+it; 0 blocks immediately:
+
+```cpp
+BlockingReaderWriterQueue<int> q(15, 0);  // capacity 15, no spinning
+```
+
 The blocking circular buffer has a fixed number of slots, but is otherwise quite similar to
 use:
 

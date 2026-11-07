@@ -670,18 +670,19 @@ namespace moodycamel
 		{
 		public:
 			typedef std::make_signed<std::size_t>::type ssize_t;
-			
+			static const int DEFAULT_SPIN_COUNT = 1024;
+
 		private:
 		    weak_atomic<ssize_t> m_count;
 		    Semaphore m_sema;
+		    const int m_spinCount;
 
 		    bool waitWithPartialSpinning(std::int64_t timeout_usecs = -1) AE_NO_TSAN
 		    {
 		        ssize_t oldCount;
-		        // Is there a better way to set the initial spin count?
-		        // If we lower it to 1000, testBenaphore becomes 15x slower on my Core i7-5930K Windows PC,
-		        // as threads start hitting the kernel semaphore.
-		        int spin = 1024;
+		        // The default was tuned on an x86 desktop; slow or power-constrained
+		        // devices may prefer a lower value (0 blocks immediately).
+		        int spin = m_spinCount;
 		        while (--spin >= 0)
 		        {
 		            if (m_count.load() > 0)
@@ -719,9 +720,11 @@ namespace moodycamel
 		    }
 
 		public:
-		    AE_NO_TSAN LightweightSemaphore(ssize_t initialCount = 0) : m_count(initialCount), m_sema()
+		    AE_NO_TSAN LightweightSemaphore(ssize_t initialCount = 0, int spinCount = DEFAULT_SPIN_COUNT)
+		        : m_count(initialCount), m_sema(), m_spinCount(spinCount)
 		    {
 		        assert(initialCount >= 0);
+		        assert(spinCount >= 0);
 		    }
 
 		    bool tryWait() AE_NO_TSAN

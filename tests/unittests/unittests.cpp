@@ -103,6 +103,7 @@ public:
 		REGISTER_TEST(max_capacity);
 		REGISTER_TEST(threaded);
 		REGISTER_TEST(blocking);
+		REGISTER_TEST(blocking_spin_count);
 		REGISTER_TEST(vector);
 #if MOODYCAMEL_HAS_EMPLACE
 		REGISTER_TEST(emplace);
@@ -605,7 +606,57 @@ public:
 		
 		return true;
 	}
-	
+
+	bool blocking_spin_count()
+	{
+		{
+			BlockingReaderWriterQueue<int> q(15, 0);
+			int item = 0;
+
+			q.enqueue(123);
+			ASSERT_OR_FAIL(q.try_dequeue(item));
+			ASSERT_OR_FAIL(item == 123);
+			ASSERT_OR_FAIL(q.size_approx() == 0);
+
+			q.enqueue(234);
+			ASSERT_OR_FAIL(q.wait_dequeue_timed(item, 0));
+			ASSERT_OR_FAIL(item == 234);
+
+			ASSERT_OR_FAIL(!q.wait_dequeue_timed(item, 1000));
+		}
+
+		{
+			// With spinning disabled, a waiting consumer must still be woken
+			// by the OS semaphore when an element arrives.
+			BlockingReaderWriterQueue<int> q(15, 0);
+			weak_atomic<int> result;
+			result = 0;
+
+			SimpleThread reader([&]() {
+				int item = 0;
+				if (q.wait_dequeue_timed(item, 1000000)) {
+					result = item;
+				}
+			});
+
+			q.enqueue(42);
+			reader.join();
+
+			ASSERT_OR_FAIL(result.load() == 42);
+		}
+
+		{
+			// The spin count is independent of the initial count.
+			spsc_sema::LightweightSemaphore sema(0, 0);
+			ASSERT_OR_FAIL(!sema.wait(0));
+			ASSERT_OR_FAIL(!sema.wait(1000));
+			sema.signal();
+			ASSERT_OR_FAIL(sema.wait(0));
+		}
+
+		return true;
+	}
+
 	bool vector()
 	{
 		{
